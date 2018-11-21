@@ -51,92 +51,92 @@
         "description": "The name of the function app to create. Must be globally unique."
       }
     },
-    "ftpConnectionName": {
+    "FTPConnectionName": {
       "type": "string",
       "defaultValue": "ftp"
     },
-    "ftpConnectionDisplayName": {
+    "FTPConnectionDisplayName": {
       "type": "string",
       "defaultValue": "FTPServer"
     },
-    "ftpServerAddress": {
+    "FTPServerAddress": {
       "type": "string",
       "metadata": {
         "description": "Server Address"
       }
     },
-    "ftpUserName": {
+    "FTPUserName": {
       "type": "string",
       "metadata": {
         "description": "User Name"
       }
     },
-    "ftpPassword": {
+    "FTPPassword": {
       "type": "securestring",
       "metadata": {
         "description": "Password"
       }
     },
-    "ftpServerPort": {
+    "FTPServerPort": {
       "type": "int",
       "metadata": {
         "description": "FTP Port Number (example: 21)"
       },
       "defaultValue": 21
     },
-    "ftpIsSSL": {
+    "FTPIsSSL": {
       "type": "bool",
       "metadata": {
         "description": "Enable SSL? (True/False)"
       },
       "defaultValue": false
     },
-    "ftpIsBinaryTransport": {
+    "FTPIsBinaryTransport": {
       "type": "bool",
       "metadata": {
         "description": "Enable Binary Transport? (True/False)"
       },
       "defaultValue": false
     },
-    "ftpDisableCertificateValidation": {
+    "FTPDisableCertificateValidation": {
       "type": "bool",
       "metadata": {
         "description": "Disable Certificate Validation? (True/False)"
       },
       "defaultValue": false
     },
-    "ftpCloseConnectionAfterRequestCompletion": {
+    "FTPCloseConnectionAfterRequestCompletion": {
       "type": "bool",
       "metadata": {
         "description": "Close FTP connection everytime after request completes? (True/False)"
       },
       "defaultValue": false
     },
-    "ftpFolder": {
+    "FTPFolder": {
       "type": "string",
       "defaultValue": "/"
     },
-    "servicebusConnectionName": {
+    "serviceBusConnectionName": {
       "type": "string",
       "defaultValue": "servicebus",
       "metadata": {
         "description": "Service Bus Connection Name"
       }
     },
-    "servicebusConnectionDisplayName": {
+    "serviceBusConnectionDisplayName": {
       "type": "string",
       "defaultValue": "WorkbenchConnection",
       "metadata": {
         "description": "Service Bus Connection Display Name"
       }
     },
-    "servicebusConnectionString": {
+    "serviceBusConnectionString": {
       "type": "securestring",
       "metadata": {
         "description": "Service Bus Connection String"
       }
     },
-    "servicebusQueue": {
+    "serviceBusQueue": {
       "type": "string",
       "defaultValue": "",
       "metadata": {
@@ -154,7 +154,7 @@
       "type": "string",
       "defaultValue": "",
       "metadata": {
-        "description": "Registry Address"
+        "description": "File Registry Contract Address"
       }
     }
   },
@@ -256,7 +256,7 @@
                 "body": {
                   "ContentData": "@{base64(concat('{','\n','    \"requestId\": \"',variables('RequestId'),'\",','\n','    \"userChainIdentifier\": \"',variables('UserChainIdentifier'),'\",','\n','    \"applicationName\": \"FileRegistry\",','\n','    \"workflowName\": \"File\",','\n','    \"parameters\": [','\n','        {','\n','            \"name\": \"registryAddress\",','\n','            \"value\": \"',variables('RegistryAddress'),'\"','\n','        },','\n','        { \"name\": \"fileId\", \"value\": \"',triggerOutputs()['headers']['x-ms-file-id'],'\" },','\n','        { \"name\": \"location\", \"value\": \"',base64ToString(triggerOutputs()['headers']['x-ms-file-path-encoded']),'\" },','\n','        { \"name\": \"fileHash\", \"value\": \"',body('Hash_File_Content'),'\" },','\n','        { \"name\": \"fileMetadataHash\", \"value\": \"',body('Hash_Metadata'),'\" },','\n','        { \"name\": \"contentType\", \"value\": \"',triggerOutputs()['headers']['Content-Type'],'\" },','\n','        { \"name\": \"etag\", \"value\": \"',triggerOutputs()['headers']['x-ms-file-etag'],'\"},','\n','        { \"name\": \"processedDateTime\", \"value\": \"',variables('ProcessDateTime'),'\" }           ','\n','    ],','\n','    \"connectionId\": 1,','\n','    \"messageSchemaVersion\": \"1.0.0\",','\n','    \"messageName\": \"CreateContractRequest\"','\n','}'))}"
                 },
-                "path": "[concat('/@{encodeURIComponent(encodeURIComponent(', '''', parameters('servicebusQueue'), '''', '))}', '/messages')]",
+                "path": "[concat('/@{encodeURIComponent(encodeURIComponent(', '''', parameters('serviceBusQueue'), '''', '))}', '/messages')]",
                 "queries": {
                   "systemProperties": "None"
                 }
@@ -331,7 +331,7 @@
                 "interval": 1
               },
               "metadata": {
-                "L2Nzdg==": "[parameters('ftpFolder')]"
+                "L2Nzdg==": "[parameters('FTPFolder')]"
               }
             }
           },
@@ -343,13 +343,13 @@
             "value": {
               "servicebus_1": {
                 "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'servicebus')]",
-                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('servicebusConnectionName'))]",
-                "connectionName": "[parameters('servicebusConnectionName')]"
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('serviceBusConnectionName'))]",
+                "connectionName": "[parameters('serviceBusConnectionName')]"
               },
               "ftp_1": {
                 "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'ftp')]",
-                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('ftpConnectionName'))]",
-                "connectionName": "[parameters('ftpConnectionName')]"
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('FTPConnectionName'))]",
+                "connectionName": "[parameters('FTPConnectionName')]"
               }
             }
           }
@@ -357,44 +357,44 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.Web/sites/sourcecontrols', parameters('functionAppName'), 'web')]",
-        "[resourceId('Microsoft.Web/connections', parameters('servicebusConnectionName'))]",
-        "[resourceId('Microsoft.Web/connections', parameters('ftpConnectionName'))]"
+        "[resourceId('Microsoft.Web/connections', parameters('serviceBusConnectionName'))]",
+        "[resourceId('Microsoft.Web/connections', parameters('FTPConnectionName'))]"
       ]
     },
     {
       "type": "MICROSOFT.WEB/CONNECTIONS",
       "apiVersion": "2016-06-01",
-      "name": "[parameters('ftpConnectionName')]",
+      "name": "[parameters('FTPConnectionName')]",
       "location": "[parameters('logicAppLocation')]",
       "properties": {
         "api": {
           "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'ftp')]"
         },
-        "displayName": "[parameters('ftpConnectionDisplayName')]",
+        "displayName": "[parameters('FTPConnectionDisplayName')]",
         "parameterValues": {
-          "serverAddress": "[parameters('ftpServerAddress')]",
-          "userName": "[parameters('ftpUserName')]",
-          "password": "[parameters('ftpPassword')]",
-          "serverPort": "[parameters('ftpServerPort')]",
-          "isSSL": "[parameters('ftpIsSSL')]",
-          "isBinaryTransport": "[parameters('ftpIsBinaryTransport')]",
-          "disableCertificateValidation": "[parameters('ftpDisableCertificateValidation')]",
-          "closeConnectionAfterRequestCompletion": "[parameters('ftpCloseConnectionAfterRequestCompletion')]"
+          "serverAddress": "[parameters('FTPServerAddress')]",
+          "userName": "[parameters('FTPUserName')]",
+          "password": "[parameters('FTPPassword')]",
+          "serverPort": "[parameters('FTPServerPort')]",
+          "isSSL": "[parameters('FTPIsSSL')]",
+          "isBinaryTransport": "[parameters('FTPIsBinaryTransport')]",
+          "disableCertificateValidation": "[parameters('FTPDisableCertificateValidation')]",
+          "closeConnectionAfterRequestCompletion": "[parameters('FTPCloseConnectionAfterRequestCompletion')]"
         }
       }
     },
     {
       "type": "MICROSOFT.WEB/CONNECTIONS",
       "apiVersion": "2016-06-01",
-      "name": "[parameters('servicebusConnectionName')]",
+      "name": "[parameters('serviceBusConnectionName')]",
       "location": "[parameters('logicAppLocation')]",
       "properties": {
         "api": {
           "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'servicebus')]"
         },
-        "displayName": "[parameters('servicebusConnectionDisplayName')]",
+        "displayName": "[parameters('serviceBusConnectionDisplayName')]",
         "parameterValues": {
-          "connectionString": "[parameters('servicebusConnectionString')]"
+          "connectionString": "[parameters('serviceBusConnectionString')]"
         }
       }
     },
