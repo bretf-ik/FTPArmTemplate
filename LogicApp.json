@@ -247,7 +247,7 @@
                 "body": {
                   "ContentData": "@{base64(concat('{    \"requestId\": \"',variables('RequestId'),'\",    \"userChainIdentifier\": \"',variables('RegistryAddress'),'\"        },        { \"name\": \"fileId\", \"value\": \"',triggerOutputs()['headers']['x-ms-file-id'],'\" },        { \"name\": \"location\", \"value\": \"',base64ToString(triggerOutputs()['headers']['x-ms-file-path-encoded']),'\" },        { \"name\": \"fileHash\", \"value\": \"',body('Hash_File_Content'),'\" },        { \"name\": \"fileMetadataHash\", \"value\": \"',body('Hash_Metadata'),'\" },        { \"name\": \"contentType\", \"value\": \"',triggerOutputs()['headers']['Content-Type'],'\" },        { \"name\": \"etag\", \"value\": \"',triggerOutputs()['headers']['x-ms-file-etag'],'\"},        { \"name\": \"processedDateTime\", \"value\": \"',variables('ProcessDateTime'),'\" }               ],    \"connectionId\": 1,    \"messageSchemaVersion\": \"1.0.0\",    \"messageName\": \"CreateContractRequest\"}'))}"
                 },
-                "path": "[concat('/@{encodeURIComponent(encodeURIComponent(', parameters('servicebusQueue'), '))}', '/messages')]",
+                "path": "[concat('/@{encodeURIComponent(encodeURIComponent(', '''', parameters('servicebusQueue'), '''', '))}', '/messages')]",
                 //"path": "/@{encodeURIComponent(encodeURIComponent('activityhub'))}/messages",
                 "queries": {
                   "systemProperties": "None"
