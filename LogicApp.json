@@ -51,70 +51,18 @@
         "description": "The name of the function app to create. Must be globally unique."
       }
     },
-    "FTPConnectionName": {
-      "type": "string",
-      "defaultValue": "ftp"
-    },
-    "FTPConnectionDisplayName": {
-      "type": "string",
-      "defaultValue": "FTPServer"
-    },
-    "FTPServerAddress": {
+    "OneDrive_Connection_Name": {
       "type": "string",
       "metadata": {
-        "description": "Server Address"
+        "description": "Name to use for OneDrive API connection"
+      },
+      "defaultValue": "onedrive"
+    },
+    "OneDrive_Connection_DisplayName": {
+      "type": "string",
+      "metadata": {
+        "description": "DisplayName to use for OneDrive API connection"
       }
-    },
-    "FTPUserName": {
-      "type": "string",
-      "metadata": {
-        "description": "User Name"
-      }
-    },
-    "FTPPassword": {
-      "type": "securestring",
-      "metadata": {
-        "description": "Password"
-      }
-    },
-    "FTPServerPort": {
-      "type": "int",
-      "metadata": {
-        "description": "FTP Port Number (example: 21)"
-      },
-      "defaultValue": 21
-    },
-    "FTPIsSSL": {
-      "type": "bool",
-      "metadata": {
-        "description": "Enable SSL? (True/False)"
-      },
-      "defaultValue": false
-    },
-    "FTPIsBinaryTransport": {
-      "type": "bool",
-      "metadata": {
-        "description": "Enable Binary Transport? (True/False)"
-      },
-      "defaultValue": false
-    },
-    "FTPDisableCertificateValidation": {
-      "type": "bool",
-      "metadata": {
-        "description": "Disable Certificate Validation? (True/False)"
-      },
-      "defaultValue": false
-    },
-    "FTPCloseConnectionAfterRequestCompletion": {
-      "type": "bool",
-      "metadata": {
-        "description": "Close FTP connection everytime after request completes? (True/False)"
-      },
-      "defaultValue": false
-    },
-    "FTPFolder": {
-      "type": "string",
-      "defaultValue": "/"
     },
     "serviceBusConnectionName": {
       "type": "string",
@@ -158,15 +106,7 @@
       }
     }
   },
-  "variables": {
-    "repoUrl": "https://github.com/TonyChampion/testfunc.git",
-    "branch": "master",
-    "functionName": "GenericHashFunction",
-    "hostingPlanName": "[parameters('functionAppName')]",
-    "storageAccountName": "[concat(uniquestring(resourceGroup().id), 'azfunctions')]",
-    "storageACcountid": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
-    "storageAccountType": "Standard_LRS"
-  },
+  "variables": {},
   "resources": [
     {
       "name": "[parameters('logicAppName')]",
@@ -183,14 +123,14 @@
             "Hash_File_Content": {
               "type": "Function",
               "inputs": {
-                "body": "@triggerBody()",
+                "body": "@triggerBody().$content",
                 "function": {
-                  "id": "[resourceId('Microsoft.Web/sites/functions', parameters('functionAppName'), variables('functionName'))]"
+                  "id": "/subscriptions/e62ff314-dfd1-4d0c-9a16-9e522748eec9/resourceGroups/PreInvent-Samples/providers/Microsoft.Web/sites/SamplesFunctionApp/functions/GenericHashFunction"
                 }
               },
               "runAfter": {}
             },
-            "Hash_Metadata": {
+            "Hash_File_Metadata": {
               "type": "Function",
               "inputs": {
                 "body": {
@@ -201,7 +141,7 @@
                   "path": "@triggerOutputs()['headers']['x-ms-file-path-encoded']"
                 },
                 "function": {
-                  "id": "[resourceId('Microsoft.Web/sites/functions', parameters('functionAppName'), variables('functionName'))]"
+                  "id": "/subscriptions/e62ff314-dfd1-4d0c-9a16-9e522748eec9/resourceGroups/PreInvent-Samples/providers/Microsoft.Web/sites/SamplesFunctionApp/functions/GenericHashFunction"
                 }
               },
               "runAfter": {
@@ -222,7 +162,7 @@
                 ]
               },
               "runAfter": {
-                "Hash_Metadata": [
+                "Hash_File_Metadata": [
                   "Succeeded"
                 ]
               }
@@ -233,8 +173,7 @@
                 "variables": [
                   {
                     "name": "ProcessDateTime",
-                    "type": "String",
-                    "value": "@{utcNow()}"
+                    "type": "String"
                   }
                 ]
               },
@@ -254,9 +193,10 @@
                 },
                 "method": "post",
                 "body": {
-                  "ContentData": "@{base64(concat('{','\n','    \"requestId\": \"',variables('RequestId'),'\",','\n','    \"userChainIdentifier\": \"',variables('UserChainIdentifier'),'\",','\n','    \"applicationName\": \"FileRegistry\",','\n','    \"workflowName\": \"File\",','\n','    \"parameters\": [','\n','        {','\n','            \"name\": \"registryAddress\",','\n','            \"value\": \"',variables('RegistryAddress'),'\"','\n','        },','\n','        { \"name\": \"fileId\", \"value\": \"',triggerOutputs()['headers']['x-ms-file-id'],'\" },','\n','        { \"name\": \"location\", \"value\": \"',base64ToString(triggerOutputs()['headers']['x-ms-file-path-encoded']),'\" },','\n','        { \"name\": \"fileHash\", \"value\": \"',body('Hash_File_Content'),'\" },','\n','        { \"name\": \"fileMetadataHash\", \"value\": \"',body('Hash_Metadata'),'\" },','\n','        { \"name\": \"contentType\", \"value\": \"',triggerOutputs()['headers']['Content-Type'],'\" },','\n','        { \"name\": \"etag\", \"value\": \"',triggerOutputs()['headers']['x-ms-file-etag'],'\"},','\n','        { \"name\": \"processedDateTime\", \"value\": \"',variables('ProcessDateTime'),'\" }           ','\n','    ],','\n','    \"connectionId\": 1,','\n','    \"messageSchemaVersion\": \"1.0.0\",','\n','    \"messageName\": \"CreateContractRequest\"','\n','}'))}"
+                  "SessionId": "@variables('RequestId')",
+                  "ContentData": "@{base64(concat('{','\n','    \"requestId\": \"',variables('RequestId'),'\",','\n','    \"userChainIdentifier\": \"',variables('UserChainIdentifier'),'\",','\n','    \"applicationName\": \"FileRegistry\",','\n','    \"workflowName\": \"File\",','\n','    \"parameters\": [','\n','        {','\n','            \"name\": \"registryAddress\",','\n','            \"value\": \"',variables('RegistryAddress'),'\"','\n','        },','\n','        { \"name\": \"fileId\", \"value\": \"',triggerOutputs()['headers']['x-ms-file-id'],'\" },','\n','        { \"name\": \"location\", \"value\": \"',base64ToString(triggerOutputs()['headers']['x-ms-file-path-encoded']),'\" },','\n','        { \"name\": \"fileHash\", \"value\": \"',body('Hash_File_Content'),'\" },','\n','        { \"name\": \"fileMetadataHash\", \"value\": \"',body('Hash_File_Metadata'),'\" },','\n','        { \"name\": \"contentType\", \"value\": \"',triggerOutputs()['headers']['Content-Type'],'\" },','\n','        { \"name\": \"etag\", \"value\": \"',triggerOutputs()['headers']['x-ms-file-etag'],'\"},','\n','        { \"name\": \"processedDateTime\", \"value\": \"',variables('ProcessDateTime'),'\" }           ','\n','    ],','\n','    \"connectionId\": 1,','\n','    \"messageSchemaVersion\": \"1.0.0\",','\n','    \"messageName\": \"CreateContractRequest\"','\n','}'))}"
                 },
-                "path": "[concat('/@{encodeURIComponent(encodeURIComponent(', '''', parameters('serviceBusQueue'), '''', '))}', '/messages')]",
+                "path": "/@{encodeURIComponent(encodeURIComponent('ingressqueue'))}/messages",
                 "queries": {
                   "systemProperties": "None"
                 }
@@ -309,29 +249,23 @@
             }
           },
           "triggers": {
-            "When_a_file_is_added_or_modified": {
+            "When_a_file_is_created": {
               "type": "ApiConnection",
               "inputs": {
                 "host": {
                   "connection": {
-                    "name": "@parameters('$connections')['ftp_1']['connectionId']"
+                    "name": "@parameters('$connections')['onedriveforbusiness_1']['connectionId']"
                   }
                 },
                 "method": "get",
-                "path": "/datasets/default/triggers/onupdatedfile",
+                "path": "/datasets/default/triggers/onnewfile",
                 "queries": {
-                  "folderId": "L2Nzdg==",
-                  "queryParametersSingleEncoded": true,
-                  "includeFileContent": true,
-                  "inferContentType": true
+                  "folderId": "/"
                 }
               },
               "recurrence": {
-                "frequency": "Hour",
-                "interval": 1
-              },
-              "metadata": {
-                "L2Nzdg==": "[parameters('FTPFolder')]"
+                "frequency": "Minute",
+                "interval": 3
               }
             }
           },
@@ -346,41 +280,30 @@
                 "connectionId": "[resourceId('Microsoft.Web/connections', parameters('serviceBusConnectionName'))]",
                 "connectionName": "[parameters('serviceBusConnectionName')]"
               },
-              "ftp_1": {
-                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'ftp')]",
-                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('FTPConnectionName'))]",
-                "connectionName": "[parameters('FTPConnectionName')]"
+              "onedriveforbusiness_1": {
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'onedriveforbusiness')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('OneDrive_Connection_Name'))]",
+                "connectionName": "[parameters('OneDrive_Connection_Name')]"
               }
             }
           }
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Web/sites/sourcecontrols', parameters('functionAppName'), 'web')]",
         "[resourceId('Microsoft.Web/connections', parameters('serviceBusConnectionName'))]",
-        "[resourceId('Microsoft.Web/connections', parameters('FTPConnectionName'))]"
+        "[resourceId('Microsoft.Web/connections', parameters('OneDrive_Connection_Name'))]"
       ]
     },
     {
       "type": "MICROSOFT.WEB/CONNECTIONS",
       "apiVersion": "2016-06-01",
-      "name": "[parameters('FTPConnectionName')]",
+      "name": "[parameters('OneDrive_Connection_Name')]",
       "location": "[parameters('logicAppLocation')]",
       "properties": {
         "api": {
-          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'ftp')]"
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'onedriveforbusiness')]"
         },
-        "displayName": "[parameters('FTPConnectionDisplayName')]",
-        "parameterValues": {
-          "serverAddress": "[parameters('FTPServerAddress')]",
-          "userName": "[parameters('FTPUserName')]",
-          "password": "[parameters('FTPPassword')]",
-          "serverPort": "[parameters('FTPServerPort')]",
-          "isSSL": "[parameters('FTPIsSSL')]",
-          "isBinaryTransport": "[parameters('FTPIsBinaryTransport')]",
-          "disableCertificateValidation": "[parameters('FTPDisableCertificateValidation')]",
-          "closeConnectionAfterRequestCompletion": "[parameters('FTPCloseConnectionAfterRequestCompletion')]"
-        }
+        "displayName": "[parameters('OneDrive_Connection_DisplayName')]"
       }
     },
     {
@@ -397,83 +320,6 @@
           "connectionString": "[parameters('serviceBusConnectionString')]"
         }
       }
-    },
-    {
-      "type": "Microsoft.Storage/storageAccounts",
-      "name": "[variables('storageAccountName')]",
-      "apiVersion": "2015-06-15",
-      "location": "[parameters('logicAppLocation')]",
-      "properties": {
-        "accountType": "[variables('storageAccountType')]"
-      }
-    },
-    {
-      "type": "Microsoft.Web/serverfarms",
-      "apiVersion": "2015-04-01",
-      "name": "[variables('hostingPlanName')]",
-      "location": "[parameters('logicAppLocation')]",
-      "properties": {
-        "name": "[variables('hostingPlanName')]",
-        "computeMode": "Dynamic",
-        "sku": "Dynamic"
-      }
-    },
-    {
-      "apiVersion": "2015-08-01",
-      "type": "Microsoft.Web/sites",
-      "name": "[parameters('functionAppName')]",
-      "location": "[parameters('logicAppLocation')]",
-      "kind": "functionapp",
-      "dependsOn": [
-        "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
-        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
-      ],
-      "properties": {
-        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
-        "siteConfig": {
-          "appSettings": [
-            {
-              "name": "AzureWebJobsDashboard",
-              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]"
-            },
-            {
-              "name": "AzureWebJobsStorage",
-              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]"
-            },
-            {
-              "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
-              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]"
-            },
-            {
-              "name": "WEBSITE_CONTENTSHARE",
-              "value": "[toLower(parameters('functionAppName'))]"
-            },
-            {
-              "name": "FUNCTIONS_EXTENSION_VERSION",
-              "value": "~1"
-            },
-            {
-              "name": "WEBSITE_NODE_DEFAULT_VERSION",
-              "value": "6.5.0"
-            }
-          ]
-        }
-      },
-      "resources": [
-        {
-          "apiVersion": "2015-08-01",
-          "name": "web",
-          "type": "sourcecontrols",
-          "dependsOn": [
-            "[resourceId('Microsoft.Web/Sites', parameters('functionAppName'))]"
-          ],
-          "properties": {
-            "RepoUrl": "[variables('repoURL')]",
-            "branch": "[variables('branch')]",
-            "IsManualIntegration": true
-          }
-        }
-      ]
     }
   ],
   "outputs": {}
