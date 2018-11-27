@@ -133,7 +133,7 @@
               "inputs": {
                 "body": "@triggerBody().$content",
                 "function": {
-                  "id": "/subscriptions/e62ff314-dfd1-4d0c-9a16-9e522748eec9/resourceGroups/PreInvent-Samples/providers/Microsoft.Web/sites/SamplesFunctionApp/functions/GenericHashFunction"
+                  "id": "[resourceId('Microsoft.Web/sites/functions', parameters('functionAppName'), variables('functionName'))]"
                 }
               },
               "runAfter": {}
@@ -149,7 +149,7 @@
                   "path": "@triggerOutputs()['headers']['x-ms-file-path-encoded']"
                 },
                 "function": {
-                  "id": "/subscriptions/e62ff314-dfd1-4d0c-9a16-9e522748eec9/resourceGroups/PreInvent-Samples/providers/Microsoft.Web/sites/SamplesFunctionApp/functions/GenericHashFunction"
+                  "id": "[resourceId('Microsoft.Web/sites/functions', parameters('functionAppName'), variables('functionName'))]"
                 }
               },
               "runAfter": {
