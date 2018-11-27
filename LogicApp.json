@@ -51,14 +51,14 @@
         "description": "The name of the function app to create. Must be globally unique."
       }
     },
-    "OneDrive_Connection_Name": {
+    "oneDriveConnectionName": {
       "type": "string",
       "metadata": {
         "description": "Name to use for OneDrive API connection"
       },
       "defaultValue": "onedrive"
     },
-    "OneDrive_Connection_DisplayName": {
+    "oneDriveConnectionDisplayName": {
       "type": "string",
       "metadata": {
         "description": "DisplayName to use for OneDrive API connection"
@@ -282,8 +282,8 @@
               },
               "onedriveforbusiness_1": {
                 "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'onedriveforbusiness')]",
-                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('OneDrive_Connection_Name'))]",
-                "connectionName": "[parameters('OneDrive_Connection_Name')]"
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('oneDriveConnectionName'))]",
+                "connectionName": "[parameters('oneDriveConnectionName')]"
               }
             }
           }
@@ -291,19 +291,19 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.Web/connections', parameters('serviceBusConnectionName'))]",
-        "[resourceId('Microsoft.Web/connections', parameters('OneDrive_Connection_Name'))]"
+        "[resourceId('Microsoft.Web/connections', parameters('oneDriveConnectionName'))]"
       ]
     },
     {
       "type": "MICROSOFT.WEB/CONNECTIONS",
       "apiVersion": "2016-06-01",
-      "name": "[parameters('OneDrive_Connection_Name')]",
+      "name": "[parameters('oneDriveConnectionName')]",
       "location": "[parameters('logicAppLocation')]",
       "properties": {
         "api": {
           "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'onedriveforbusiness')]"
         },
-        "displayName": "[parameters('OneDrive_Connection_DisplayName')]"
+        "displayName": "[parameters('oneDriveConnectionDisplayName')]"
       }
     },
     {
