@@ -374,10 +374,10 @@
       "type": "MICROSOFT.WEB/CONNECTIONS",
       "apiVersion": "2016-06-01",
       "name": "[parameters('oneDriveConnectionName')]",
-      "location": "westus2",
+      "location": "[parameters('logicAppLocation')]",
       "properties": {
         "api": {
-          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', 'westus2', '/managedApis/', 'onedrive')]"
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'onedriveforbusiness')]"
         },
         "displayName": "[parameters('oneDriveConnectionDisplayName')]"
       }
@@ -386,10 +386,10 @@
       "type": "MICROSOFT.WEB/CONNECTIONS",
       "apiVersion": "2016-06-01",
       "name": "[parameters('serviceBusConnectionName')]",
-      "location": "westus2",
+      "location": "[parameters('logicAppLocation')]",
       "properties": {
         "api": {
-          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', 'westus2', '/managedApis/', 'servicebus')]"
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'servicebus')]"
         },
         "displayName": "[parameters('serviceBusConnectionDisplayName')]",
         "parameterValues": {
