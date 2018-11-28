@@ -51,17 +51,17 @@
         "description": "The name of the function app to create. Must be globally unique."
       }
     },
-    "oneDriveConnectionName": {
+    "office365ConnectionName": {
       "type": "string",
       "metadata": {
-        "description": "Name to use for OneDrive API connection"
+        "description": "Name to use for Office 365 API connection"
       },
-      "defaultValue": "onedrive"
+      "defaultValue": "office365"
     },
-    "oneDriveConnectionDisplayName": {
+    "office365ConnectionDisplayName": {
       "type": "string",
       "metadata": {
-        "description": "DisplayName to use for OneDrive API connection"
+        "description": "DisplayName to use for Office 365 API connection"
       }
     },
     "serviceBusConnectionName": {
@@ -81,7 +81,7 @@
     "serviceBusConnectionString": {
       "type": "securestring",
       "metadata": {
-        "description": "Service Bus Connection String"
+        "description": "Azure Service Bus Connection String"
       }
     },
     "serviceBusQueue": {
@@ -128,52 +128,17 @@
         "definition": {
           "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
           "actions": {
-            "Hash_File_Content": {
-              "type": "Function",
-              "inputs": {
-                "body": "@triggerBody().$content",
-                "function": {
-                  "id": "[resourceId('Microsoft.Web/sites/functions', parameters('functionAppName'), variables('functionName'))]"
-                }
-              },
-              "runAfter": {}
-            },
-            "Hash_File_Metadata": {
-              "type": "Function",
-              "inputs": {
-                "body": {
-                  "contentType": "@triggerOutputs()['headers']['Content-Type']",
-                  "etag": "@triggerOutputs()['headers']['x-ms-file-etag']",
-                  "id": "@triggerOutputs()['headers']['x-ms-file-id']",
-                  "name": "@triggerOutputs()['headers']['x-ms-file-name-encoded']",
-                  "path": "@triggerOutputs()['headers']['x-ms-file-path-encoded']"
-                },
-                "function": {
-                  "id": "[resourceId('Microsoft.Web/sites/functions', parameters('functionAppName'), variables('functionName'))]"
-                }
-              },
-              "runAfter": {
-                "Hash_File_Content": [
-                  "Succeeded"
-                ]
-              }
-            },
             "Initialize_RequestId": {
               "type": "InitializeVariable",
               "inputs": {
                 "variables": [
                   {
                     "name": "RequestId",
-                    "type": "String",
-                    "value": "@{guid()}"
+                    "type": "String"
                   }
                 ]
               },
-              "runAfter": {
-                "Hash_File_Metadata": [
-                  "Succeeded"
-                ]
-              }
+              "runAfter": {}
             },
             "Initialize_ProcessDateTime": {
               "type": "InitializeVariable",
@@ -191,22 +156,87 @@
                 ]
               }
             },
-            "Send_message": {
-              "type": "ApiConnection",
-              "inputs": {
-                "host": {
-                  "connection": {
-                    "name": "@parameters('$connections')['servicebus_1']['connectionId']"
+            "For_each": {
+              "type": "Foreach",
+              "foreach": "@triggerBody()?['Attachments']",
+              "actions": {
+                "Hash_File_Content": {
+                  "type": "Function",
+                  "inputs": {
+                    "body": "@items('For_each')?['ContentBytes']",
+                    "function": {
+                      "id": "[resourceId('Microsoft.Web/sites/functions', parameters('functionAppName'), variables('functionName'))]"
+                    }
+                  },
+                  "runAfter": {}
+                },
+                "Hash_Metadata": {
+                  "type": "Function",
+                  "inputs": {
+                    "body": {
+                      "contentType": "@items('For_each')?['ContentType']",
+                      "etag": "@items('For_each')?['Id']",
+                      "id": "@items('For_each')?['Id']",
+                      "name": "@items('For_each')?['Name']",
+                      "path": "@items('For_each')?['Name']"
+                    },
+                    "function": {
+                      "id": "[resourceId('Microsoft.Web/sites/functions', parameters('functionAppName'), variables('functionName'))]"
+                    }
+                  },
+                  "runAfter": {
+                    "Hash_File_Content": [
+                      "Succeeded"
+                    ]
                   }
                 },
-                "method": "post",
-                "body": {
-                  "SessionId": "@variables('RequestId')",
-                  "ContentData": "@{base64(concat('{','\n','    \"requestId\": \"',variables('RequestId'),'\",','\n','    \"userChainIdentifier\": \"',variables('UserChainIdentifier'),'\",','\n','    \"applicationName\": \"FileRegistry\",','\n','    \"workflowName\": \"File\",','\n','    \"parameters\": [','\n','        {','\n','            \"name\": \"registryAddress\",','\n','            \"value\": \"',variables('RegistryAddress'),'\"','\n','        },','\n','        { \"name\": \"fileId\", \"value\": \"',triggerOutputs()['headers']['x-ms-file-id'],'\" },','\n','        { \"name\": \"location\", \"value\": \"',base64ToString(triggerOutputs()['headers']['x-ms-file-path-encoded']),'\" },','\n','        { \"name\": \"fileHash\", \"value\": \"',body('Hash_File_Content'),'\" },','\n','        { \"name\": \"fileMetadataHash\", \"value\": \"',body('Hash_File_Metadata'),'\" },','\n','        { \"name\": \"contentType\", \"value\": \"',triggerOutputs()['headers']['Content-Type'],'\" },','\n','        { \"name\": \"etag\", \"value\": \"',triggerOutputs()['headers']['x-ms-file-etag'],'\"},','\n','        { \"name\": \"processedDateTime\", \"value\": \"',variables('ProcessDateTime'),'\" }           ','\n','    ],','\n','    \"connectionId\": 1,','\n','    \"messageSchemaVersion\": \"1.0.0\",','\n','    \"messageName\": \"CreateContractRequest\"','\n','}'))}"
+                "Set_RequestId": {
+                  "type": "SetVariable",
+                  "inputs": {
+                    "name": "RequestId",
+                    "value": "@{guid()}"
+                  },
+                  "runAfter": {
+                    "Hash_Metadata": [
+                      "Succeeded"
+                    ]
+                  }
                 },
-                "path": "[concat('/@{encodeURIComponent(encodeURIComponent(', '''', parameters('serviceBusQueue'), '''', '))}', '/messages')]",
-                "queries": {
-                  "systemProperties": "None"
+                "Set_ProcessDateTime": {
+                  "type": "SetVariable",
+                  "inputs": {
+                    "name": "ProcessDateTime",
+                    "value": "@{utcNow()}"
+                  },
+                  "runAfter": {
+                    "Set_RequestId": [
+                      "Succeeded"
+                    ]
+                  }
+                },
+                "Send_message": {
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['servicebus_1']['connectionId']"
+                      }
+                    },
+                    "method": "post",
+                    "body": {
+                      "SessionId": "@variables('RequestId')",
+                      "ContentData": "@{base64(concat('{','\n','    \"requestId\": \"',variables('RequestId'),'\",','\n','    \"userChainIdentifier\": \"',variables('UserChainIdentifier'),'\",','\n','    \"applicationName\": \"FileRegistry\",','\n','    \"workflowName\": \"File\",','\n','    \"parameters\": [','\n','        {','\n','            \"name\": \"registryAddress\",','\n','            \"value\": \"',variables('RegistryAddress'),'\"','\n','        },','\n','        { \"name\": \"fileId\", \"value\": \"',items('For_each')?['Id'],'\" },','\n','        { \"name\": \"location\", \"value\": \"',items('For_each')?['Name'],'\" },','\n','        { \"name\": \"fileHash\", \"value\": \"',body('Hash_File_Content'),'\" },','\n','        { \"name\": \"fileMetadataHash\", \"value\": \"',body('Hash_Metadata'),'\" },','\n','        { \"name\": \"contentType\", \"value\": \"',items('For_each')?['ContentType'],'\" },','\n','        { \"name\": \"etag\", \"value\": \"',items('For_each')?['Id'],'\"},','\n','        { \"name\": \"processedDateTime\", \"value\": \"',variables('ProcessDateTime'),'\" }           ','\n','    ],','\n','    \"connectionId\": 1,','\n','    \"messageSchemaVersion\": \"1.0.0\",','\n','    \"messageName\": \"CreateContractRequest\"','\n','}'))}"
+                    },
+                    "path": "[concat('/@{encodeURIComponent(encodeURIComponent(', '''', parameters('serviceBusQueue'), '''', '))}', '/messages')]",
+                    "queries": {
+                      "systemProperties": "None"
+                    }
+                  },
+                  "runAfter": {
+                    "Set_ProcessDateTime": [
+                      "Succeeded"
+                    ]
+                  }
                 }
               },
               "runAfter": {
@@ -257,24 +287,28 @@
             }
           },
           "triggers": {
-            "When_a_file_is_created": {
+            "When_a_new_email_arrives": {
               "type": "ApiConnection",
               "inputs": {
                 "host": {
                   "connection": {
-                    "name": "@parameters('$connections')['onedriveforbusiness_1']['connectionId']"
+                    "name": "@parameters('$connections')['office365']['connectionId']"
                   }
                 },
                 "method": "get",
-                "path": "/datasets/default/triggers/onnewfile",
+                "path": "/Mail/OnNewEmail",
                 "queries": {
-                  "folderId": "/"
+                  "folderPath": "Inbox",
+                  "importance": "Any",
+                  "fetchOnlyWithAttachment": false,
+                  "includeAttachments": false
                 }
               },
               "recurrence": {
-                "frequency": "Minute",
-                "interval": 3
-              }
+                "frequency": "Hour",
+                "interval": 1
+              },
+              "splitOn": "@triggerBody()?['value']"
             }
           },
           "contentVersion": "1.0.0.0",
@@ -288,10 +322,10 @@
                 "connectionId": "[resourceId('Microsoft.Web/connections', parameters('serviceBusConnectionName'))]",
                 "connectionName": "[parameters('serviceBusConnectionName')]"
               },
-              "onedriveforbusiness_1": {
-                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'onedriveforbusiness')]",
-                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('oneDriveConnectionName'))]",
-                "connectionName": "[parameters('oneDriveConnectionName')]"
+              "office365": {
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'office365')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('office365ConnectionName'))]",
+                "connectionName": "[parameters('office365ConnectionName')]"
               }
             }
           }
@@ -300,19 +334,19 @@
       "dependsOn": [
         "[resourceId('Microsoft.Web/sites/sourcecontrols', parameters('functionAppName'), 'web')]",
         "[resourceId('Microsoft.Web/connections', parameters('serviceBusConnectionName'))]",
-        "[resourceId('Microsoft.Web/connections', parameters('oneDriveConnectionName'))]"
+        "[resourceId('Microsoft.Web/connections', parameters('office365ConnectionName'))]"
       ]
     },
     {
       "type": "MICROSOFT.WEB/CONNECTIONS",
       "apiVersion": "2016-06-01",
-      "name": "[parameters('oneDriveConnectionName')]",
+      "name": "[parameters('office365ConnectionName')]",
       "location": "[parameters('logicAppLocation')]",
       "properties": {
         "api": {
-          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'onedriveforbusiness')]"
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'office365')]"
         },
-        "displayName": "[parameters('oneDriveConnectionDisplayName')]"
+        "displayName": "[parameters('office365ConnectionDisplayName')]"
       }
     },
     {
@@ -382,7 +416,7 @@
             },
             {
               "name": "FUNCTIONS_EXTENSION_VERSION",
-              "value": "~1"
+              "value": "~2"
             },
             {
               "name": "WEBSITE_NODE_DEFAULT_VERSION",
