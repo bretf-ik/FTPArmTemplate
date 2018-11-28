@@ -51,17 +51,17 @@
         "description": "The name of the function app to create. Must be globally unique."
       }
     },
-    "office365ConnectionName": {
+    "oneDriveConnectionName": {
       "type": "string",
       "metadata": {
-        "description": "Name to use for Office 365 API connection"
+        "description": "Name to use for OneDrive API connection"
       },
-      "defaultValue": "office365"
+      "defaultValue": "onedrive"
     },
-    "office365ConnectionDisplayName": {
+    "oneDriveConnectionDisplayName": {
       "type": "string",
       "metadata": {
-        "description": "DisplayName to use for Office 365 API connection"
+        "description": "DisplayName to use for OneDrive API connection"
       }
     },
     "serviceBusConnectionName": {
@@ -109,7 +109,7 @@
   "variables": {
     "repoUrl": "https://github.com/TonyChampion/testfunc.git",
     "branch": "master",
-    "functionName": "GenericHashFunction",
+    "functionName": "CSVParser",
     "hostingPlanName": "[parameters('functionAppName')]",
     "storageAccountName": "[concat(uniquestring(resourceGroup().id), 'azfunctions')]",
     "storageACcountid": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
@@ -117,17 +117,76 @@
   },
   "resources": [
     {
-      "name": "[parameters('logicAppName')]",
-      "type": "Microsoft.Logic/workflows",
-      "location": "[parameters('logicAppLocation')]",
-      "tags": {
-        "displayName": "LogicApp"
-      },
-      "apiVersion": "2016-06-01",
       "properties": {
+        "state": "Enabled",
         "definition": {
           "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
           "actions": {
+            "CSVParser": {
+              "type": "Function",
+              "inputs": {
+                "body": "@triggerBody()",
+                "function": {
+                  "id": "[resourceId('Microsoft.Web/sites/functions', parameters('functionAppName'), variables('functionName'))]"
+                }
+              },
+              "runAfter": {}
+            },
+            "For_each": {
+              "type": "Foreach",
+              "foreach": "@body('Parse_JSON')?['Rows']",
+              "actions": {
+                "Send_message": {
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['servicebus']['connectionId']"
+                      }
+                    },
+                    "method": "post",
+                    "body": {
+                      "SessionId": "@variables('RequestId')",
+                      "ContentData": "@{base64(concat('{','\n','    \"requestId\": \"',variables('RequestId'),'\",','\n','    \"userChainIdentifier\": \"',variables('UserChainIdentifier'),'\",','\n','    \"applicationName\" : \"RecallEventRegistry2\",','\n','    \"workflowName\": \"RecallEvent2\",','\n','    \"Parameters\": [','\n','        { \"name\": \"_RecallDate\", \"value\": \"',items('For_each')?['Recall Date'],'\" },','\n','        { \"name\": \"_RecallNumber\", \"value\": \"',items('For_each')?['Recall Number'],'\" },','\n','        { \"name\": \"_RecallClass\", \"value\": \"',items('For_each')?['Recall Class'],'\" },','\n','        { \"name\": \"_Product\", \"value\": \"',items('For_each')?['Product'],'\" },','\n','        { \"name\": \"_RecallReason\", \"value\": \"',items('For_each')?['Reason for Recall'],'\" },','\n','        { \"name\": \"_PoundsRecalled\", \"value\": ',items('For_each')?['Pounds Recalled'],' },','\n','        { \"name\": \"_RegistryAddress\", \"value\": \"',variables('RegistryAddress'),'\"}','\n','    ],','\n','    \"connectionId\": 1,','\n','    \"messageSchemaVersion\": \"1.0.0\",','\n','    \"messageName\": \"CreateContractRequest\"','\n','}'))}"
+                    },
+                    "path": "[concat('/@{encodeURIComponent(encodeURIComponent(', '''', parameters('serviceBusQueue'), '''', '))}', '/messages')]",
+                    "queries": {
+                      "systemProperties": "None"
+                    }
+                  },
+                  "runAfter": {
+                    "Set_ProcessDateTime": [
+                      "Succeeded"
+                    ]
+                  }
+                },
+                "Set_RequestId": {
+                  "type": "SetVariable",
+                  "inputs": {
+                    "name": "RequestId",
+                    "value": "@{guid()}"
+                  },
+                  "runAfter": {}
+                },
+                "Set_ProcessDateTime": {
+                  "type": "SetVariable",
+                  "inputs": {
+                    "name": "ProcessDateTime",
+                    "value": "@{utcNow()}"
+                  },
+                  "runAfter": {
+                    "Set_RequestId": [
+                      "Succeeded"
+                    ]
+                  }
+                }
+              },
+              "runAfter": {
+                "Initialize_File_Registry_Address": [
+                  "Succeeded"
+                ]
+              }
+            },
             "Initialize_RequestId": {
               "type": "InitializeVariable",
               "inputs": {
@@ -138,7 +197,11 @@
                   }
                 ]
               },
-              "runAfter": {}
+              "runAfter": {
+                "Parse_JSON": [
+                  "Succeeded"
+                ]
+              }
             },
             "Initialize_ProcessDateTime": {
               "type": "InitializeVariable",
@@ -152,95 +215,6 @@
               },
               "runAfter": {
                 "Initialize_RequestId": [
-                  "Succeeded"
-                ]
-              }
-            },
-            "For_each": {
-              "type": "Foreach",
-              "foreach": "@triggerBody()?['Attachments']",
-              "actions": {
-                "Hash_File_Content": {
-                  "type": "Function",
-                  "inputs": {
-                    "body": "@items('For_each')?['ContentBytes']",
-                    "function": {
-                      "id": "[resourceId('Microsoft.Web/sites/functions', parameters('functionAppName'), variables('functionName'))]"
-                    }
-                  },
-                  "runAfter": {}
-                },
-                "Hash_Metadata": {
-                  "type": "Function",
-                  "inputs": {
-                    "body": {
-                      "contentType": "@items('For_each')?['ContentType']",
-                      "etag": "@items('For_each')?['Id']",
-                      "id": "@items('For_each')?['Id']",
-                      "name": "@items('For_each')?['Name']",
-                      "path": "@items('For_each')?['Name']"
-                    },
-                    "function": {
-                      "id": "[resourceId('Microsoft.Web/sites/functions', parameters('functionAppName'), variables('functionName'))]"
-                    }
-                  },
-                  "runAfter": {
-                    "Hash_File_Content": [
-                      "Succeeded"
-                    ]
-                  }
-                },
-                "Set_RequestId": {
-                  "type": "SetVariable",
-                  "inputs": {
-                    "name": "RequestId",
-                    "value": "@{guid()}"
-                  },
-                  "runAfter": {
-                    "Hash_Metadata": [
-                      "Succeeded"
-                    ]
-                  }
-                },
-                "Set_ProcessDateTime": {
-                  "type": "SetVariable",
-                  "inputs": {
-                    "name": "ProcessDateTime",
-                    "value": "@{utcNow()}"
-                  },
-                  "runAfter": {
-                    "Set_RequestId": [
-                      "Succeeded"
-                    ]
-                  }
-                },
-                "Send_message": {
-                  "type": "ApiConnection",
-                  "inputs": {
-                    "host": {
-                      "connection": {
-                        "name": "@parameters('$connections')['servicebus_1']['connectionId']"
-                      }
-                    },
-                    "method": "post",
-                    "body": {
-                      "SessionId": "@variables('RequestId')",
-                      "ContentData": "@{base64(concat('{','\n','    \"requestId\": \"',variables('RequestId'),'\",','\n','    \"userChainIdentifier\": \"',variables('UserChainIdentifier'),'\",','\n','    \"applicationName\": \"FileRegistry\",','\n','    \"workflowName\": \"File\",','\n','    \"parameters\": [','\n','        {','\n','            \"name\": \"registryAddress\",','\n','            \"value\": \"',variables('RegistryAddress'),'\"','\n','        },','\n','        { \"name\": \"fileId\", \"value\": \"',items('For_each')?['Id'],'\" },','\n','        { \"name\": \"location\", \"value\": \"',items('For_each')?['Name'],'\" },','\n','        { \"name\": \"fileHash\", \"value\": \"',body('Hash_File_Content'),'\" },','\n','        { \"name\": \"fileMetadataHash\", \"value\": \"',body('Hash_Metadata'),'\" },','\n','        { \"name\": \"contentType\", \"value\": \"',items('For_each')?['ContentType'],'\" },','\n','        { \"name\": \"etag\", \"value\": \"',items('For_each')?['Id'],'\"},','\n','        { \"name\": \"processedDateTime\", \"value\": \"',variables('ProcessDateTime'),'\" }           ','\n','    ],','\n','    \"connectionId\": 1,','\n','    \"messageSchemaVersion\": \"1.0.0\",','\n','    \"messageName\": \"CreateContractRequest\"','\n','}'))}"
-                    },
-                    "path": "[concat('/@{encodeURIComponent(encodeURIComponent(', '''', parameters('serviceBusQueue'), '''', '))}', '/messages')]",
-                    "queries": {
-                      "systemProperties": "None"
-                    }
-                  },
-                  "runAfter": {
-                    "Set_ProcessDateTime": [
-                      "Succeeded"
-                    ]
-                  }
-                }
-              },
-              "runAfter": {
-                "Initialize_File_Registry_Address": [
                   "Succeeded"
                 ]
               }
@@ -278,6 +252,56 @@
                   "Succeeded"
                 ]
               }
+            },
+            "Parse_JSON": {
+              "type": "ParseJson",
+              "inputs": {
+                "content": "@body('CSVParser')",
+                "schema": {
+                  "properties": {
+                    "Rows": {
+                      "items": {
+                        "properties": {
+                          "Pounds Recalled": {
+                            "type": "string"
+                          },
+                          "Product": {
+                            "type": "string"
+                          },
+                          "Reason for Recall": {
+                            "type": "string"
+                          },
+                          "Recall Class": {
+                            "type": "string"
+                          },
+                          "Recall Date": {
+                            "type": "string"
+                          },
+                          "Recall Number": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "Recall Date",
+                          "Recall Number",
+                          "Recall Class",
+                          "Product",
+                          "Reason for Recall",
+                          "Pounds Recalled"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "runAfter": {
+                "CSVParser": [
+                  "Succeeded"
+                ]
+              }
             }
           },
           "parameters": {
@@ -287,28 +311,29 @@
             }
           },
           "triggers": {
-            "When_a_new_email_arrives": {
+            "When_a_file_is_created": {
               "type": "ApiConnection",
               "inputs": {
                 "host": {
                   "connection": {
-                    "name": "@parameters('$connections')['office365']['connectionId']"
+                    "name": "@parameters('$connections')['onedrive_1']['connectionId']"
                   }
                 },
                 "method": "get",
-                "path": "/Mail/OnNewEmail",
+                "path": "/datasets/default/triggers/onnewfile",
                 "queries": {
-                  "folderPath": "Inbox",
-                  "importance": "Any",
-                  "fetchOnlyWithAttachment": false,
-                  "includeAttachments": false
+                  "folderId": "EC86DFB3A35E6D1B!34716",
+                  "inferContentType": true
                 }
               },
               "recurrence": {
-                "frequency": "Hour",
-                "interval": 1
+                "frequency": "Minute",
+                "interval": 3
               },
-              "splitOn": "@triggerBody()?['value']"
+              "metadata": {
+                "6e202211-2856-4d17-9ded-5beb8b8626b0": "/",
+                "EC86DFB3A35E6D1B!34716": "/data"
+              }
             }
           },
           "contentVersion": "1.0.0.0",
@@ -317,46 +342,54 @@
         "parameters": {
           "$connections": {
             "value": {
-              "servicebus_1": {
+              "servicebus": {
                 "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'servicebus')]",
                 "connectionId": "[resourceId('Microsoft.Web/connections', parameters('serviceBusConnectionName'))]",
                 "connectionName": "[parameters('serviceBusConnectionName')]"
               },
-              "office365": {
-                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'office365')]",
-                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('office365ConnectionName'))]",
-                "connectionName": "[parameters('office365ConnectionName')]"
+              "onedrive_1": {
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'onedrive')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('oneDriveConnectionName'))]",
+                "connectionName": "[parameters('oneDriveConnectionName')]"
               }
             }
           }
         }
       },
+      "name": "[parameters('logicAppName')]",
+      "type": "Microsoft.Logic/workflows",
+      "location": "[parameters('logicAppLocation')]",
+      "tags": {
+        "sample": "flat_file",
+        "displayName": "LogicApp"
+      },
+      "apiVersion": "2016-06-01",
       "dependsOn": [
         "[resourceId('Microsoft.Web/sites/sourcecontrols', parameters('functionAppName'), 'web')]",
         "[resourceId('Microsoft.Web/connections', parameters('serviceBusConnectionName'))]",
-        "[resourceId('Microsoft.Web/connections', parameters('office365ConnectionName'))]"
+        "[resourceId('Microsoft.Web/connections', parameters('oneDriveConnectionName'))]"
       ]
     },
     {
       "type": "MICROSOFT.WEB/CONNECTIONS",
       "apiVersion": "2016-06-01",
-      "name": "[parameters('office365ConnectionName')]",
-      "location": "[parameters('logicAppLocation')]",
+      "name": "[parameters('oneDriveConnectionName')]",
+      "location": "westus2",
       "properties": {
         "api": {
-          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'office365')]"
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', 'westus2', '/managedApis/', 'onedrive')]"
         },
-        "displayName": "[parameters('office365ConnectionDisplayName')]"
+        "displayName": "[parameters('oneDriveConnectionDisplayName')]"
       }
     },
     {
       "type": "MICROSOFT.WEB/CONNECTIONS",
       "apiVersion": "2016-06-01",
       "name": "[parameters('serviceBusConnectionName')]",
-      "location": "[parameters('logicAppLocation')]",
+      "location": "westus2",
       "properties": {
         "api": {
-          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'servicebus')]"
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', 'westus2', '/managedApis/', 'servicebus')]"
         },
         "displayName": "[parameters('serviceBusConnectionDisplayName')]",
         "parameterValues": {
