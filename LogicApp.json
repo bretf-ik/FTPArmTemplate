@@ -12,7 +12,6 @@
     },
     "logicAppLocation": {
       "type": "string",
-      "defaultValue": "[resourceGroup().location]",
       "allowedValues": [
         "[resourceGroup().location]",
         "eastasia",
@@ -40,6 +39,7 @@
         "westcentralus",
         "westus2"
       ],
+      "defaultValue": "[resourceGroup().location]",
       "metadata": {
         "description": "Location of the Logic App."
       }
@@ -51,43 +51,42 @@
         "description": "The name of the function app to create. Must be globally unique."
       }
     },
-    "sharepointonlineConnectionName": {
+    "azureBlobStorageConnectionName": {
       "type": "string",
-      "defaultValue": "sharepointonline"
+      "defaultValue": "blobstorage"
     },
-    "sharepointonlineConnectionDisplayName": {
+    "azureBlobStorageConnectionDisplayName": {
       "type": "string",
-      "defaultValue": ""
+      "defaultValue": "BlobLogicAppConnection"
     },
-    "sharepointonlineWebsite": {
+    "azureBlobStorageAccountName": {
       "type": "string",
-      "defaultValue": "",
       "metadata": {
-        "description": "The URL of the SharePoint site"
+        "description": "Name of the storage account the connector should use."
+      },
+      "defaultValue": "azurestoragelogicapp"
+    },
+    "azureBlobStorageAccessKey": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Specify a valid primary/secondary storage account access key."
       }
     },
-    "sharepointonlineFolder": {
-      "type": "string",
-      "defaultValue": "",
-      "metadata": {
-        "description": "The folder path to monitor for file additions"
-      }
-    },
-    "servicebusConnectionName": {
+    "serviceBusConnectionName": {
       "type": "string",
       "defaultValue": "servicebus",
       "metadata": {
         "description": "Service Bus Connection Name"
       }
     },
-    "servicebusConnectionDisplayName": {
+    "serviceBusConnectionDisplayName": {
       "type": "string",
       "defaultValue": "WorkbenchConnection",
       "metadata": {
         "description": "Service Bus Connection Display Name"
       }
     },
-    "servicebusConnectionString": {
+    "serviceBusConnectionString": {
       "type": "securestring",
       "metadata": {
         "description": "Azure Service Bus Connection String"
@@ -95,21 +94,19 @@
     },
     "serviceBusQueue": {
       "type": "string",
-      "defaultValue": "",
+      "defaultValue": "ingressqueue",
       "metadata": {
         "description": "Service Bus Queue Name"
       }
     },
     "userChainIdentifier": {
       "type": "string",
-      "defaultValue": "",
       "metadata": {
         "description": "User Chain Identifier"
       }
     },
     "registryAddress": {
       "type": "string",
-      "defaultValue": "",
       "metadata": {
         "description": "File Registry Contract Address"
       }
@@ -119,46 +116,73 @@
     "repoUrl": "https://github.com/TonyChampion/testfunc.git",
     "branch": "master",
     "functionName": "GenericHashFunction",
-    "hostingPlanName": "[parameters('functionAppName')]",
+    "hostingPlanName": "fileHashFunctionPlan",
+    "functionAppName": "fileHashFunction",
     "storageAccountName": "[concat(uniquestring(resourceGroup().id), 'azfunctions')]",
     "storageACcountid": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
     "storageAccountType": "Standard_LRS"
   },
   "resources": [
     {
+      "type": "Microsoft.Storage/storageAccounts",
+      "name": "[variables('storageAccountName')]",
+      "apiVersion": "2015-06-15",
+      "location": "[parameters('logicAppLocation')]",
+      "properties": {
+        "accountType": "[variables('storageAccountType')]"
+      }
+    },
+    {
       "name": "[parameters('logicAppName')]",
       "type": "Microsoft.Logic/workflows",
       "location": "[parameters('logicAppLocation')]",
-      "tags": {
-        "displayName": "LogicApp"
-      },
-      "apiVersion": "2016-06-01",
       "properties": {
+        "state": "Enabled",
         "definition": {
           "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
           "actions": {
-            "Hash_File_Content": {
-              "type": "Function",
+            "Get_blob_content": {
+              "type": "ApiConnection",
               "inputs": {
-                "body": "@triggerBody().$content",
-                "function": {
-                  "id": "[resourceId('Microsoft.Web/sites/functions', parameters('functionAppName'), variables('functionName'))]"
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azureblob']['connectionId']"
+                  }
+                },
+                "method": "get",
+                "path": "/datasets/default/files/@{encodeURIComponent(encodeURIComponent(triggerBody()?['Id']))}/content",
+                "queries": {
+                  "inferContentType": true
                 }
               },
               "runAfter": {}
             },
-            "Hash_Metadata": {
+            "Hash_File_Content": {
+              "type": "Function",
+              "inputs": {
+                "body": "@body('Get_blob_content').$content",
+                "function": {
+                  "id": "[resourceId('Microsoft.Web/sites/functions', variables('functionAppName'), variables('functionName'))]"
+                }
+              },
+              "runAfter": {
+                "Get_blob_content": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Hash_File_Metadata": {
               "type": "Function",
               "inputs": {
                 "body": {
-                  "contentType": "@triggerOutputs()['headers']['Content-Type']",
-                  "etag": "@triggerOutputs()['headers']['x-ms-file-etag']",
-                  "id": "@triggerOutputs()['headers']['x-ms-file-id']",
-                  "name": "@triggerOutputs()['headers']['x-ms-file-name-encoded']",
-                  "path": "@triggerOutputs()['headers']['x-ms-file-path-encoded']"
+                  "contentType": "@triggerBody()?['MediaType']",
+                  "etag": "@triggerBody()?['ETag']",
+                  "id": "@triggerBody()?['Id']",
+                  "name": "@triggerBody()?['Name']",
+                  "path": "@triggerBody()?['Path']"
                 },
                 "function": {
-                  "id": "[resourceId('Microsoft.Web/sites/functions', parameters('functionAppName'), variables('functionName'))]"
+                  "id": "[resourceId('Microsoft.Web/sites/functions', variables('functionAppName'), variables('functionName'))]"
                 }
               },
               "runAfter": {
@@ -179,7 +203,7 @@
                 ]
               },
               "runAfter": {
-                "Hash_Metadata": [
+                "Hash_File_Metadata": [
                   "Succeeded"
                 ]
               }
@@ -189,7 +213,7 @@
               "inputs": {
                 "variables": [
                   {
-                    "name": "ProcessDateTime",
+                    "name": "ProcessedDateTime",
                     "type": "String",
                     "value": "@{utcNow()}"
                   }
@@ -197,30 +221,6 @@
               },
               "runAfter": {
                 "Initialize_RequestId": [
-                  "Succeeded"
-                ]
-              }
-            },
-            "Send_message": {
-              "type": "ApiConnection",
-              "inputs": {
-                "host": {
-                  "connection": {
-                    "name": "@parameters('$connections')['servicebus_1']['connectionId']"
-                  }
-                },
-                "method": "post",
-                "body": {
-                  "SessionId": "@variables('RequestId')",
-                  "ContentData": "@{base64(concat('{','\n','    \"requestId\": \"',variables('RequestId'),'\",','\n','    \"userChainIdentifier\": \"',variables('UserChainIdentifier'),'\",','\n','    \"applicationName\": \"FileRegistry\",','\n','    \"workflowName\": \"File\",','\n','    \"parameters\": [','\n','        {','\n','            \"name\": \"registryAddress\",','\n','            \"value\": \"',variables('RegistryAddress'),'\"','\n','        },','\n','        { \"name\": \"fileId\", \"value\": \"',triggerOutputs()['headers']['x-ms-file-id'],'\" },','\n','        { \"name\": \"location\", \"value\": \"',base64ToString(triggerOutputs()['headers']['x-ms-file-path-encoded']),'\" },','\n','        { \"name\": \"fileHash\", \"value\": \"',body('Hash_File_Content'),'\" },','\n','        { \"name\": \"fileMetadataHash\", \"value\": \"',body('Hash_Metadata'),'\" },','\n','        { \"name\": \"contentType\", \"value\": \"',triggerOutputs()['headers']['Content-Type'],'\" },','\n','        { \"name\": \"etag\", \"value\": \"',triggerOutputs()['headers']['x-ms-file-etag'],'\"},','\n','        { \"name\": \"processedDateTime\", \"value\": \"',variables('ProcessDateTime'),'\" }           ','\n','    ],','\n','    \"connectionId\": 1,','\n','    \"messageSchemaVersion\": \"1.0.0\",','\n','    \"messageName\": \"CreateContractRequest\"','\n','}'))}"
-                },
-                "path": "[concat('/@{encodeURIComponent(encodeURIComponent(', '''', parameters('serviceBusQueue'), '''', '))}', '/messages')]",
-                "queries": {
-                  "systemProperties": "None"
-                }
-              },
-              "runAfter": {
-                "Initialize_File_Registry_Address": [
                   "Succeeded"
                 ]
               }
@@ -258,6 +258,30 @@
                   "Succeeded"
                 ]
               }
+            },
+            "Send_message": {
+              "runAfter": {
+                "Initialize_File_Registry_Address": [
+                  "Succeeded"
+                ]
+              },
+              "type": "ApiConnection",
+              "inputs": {
+                "body": {
+                  "ContentData": "@{base64(concat('{','\n','    \"requestId\": \"',variables('RequestId'),'\",','\n','    \"userChainIdentifier\": \"',variables('UserChainIdentifier'),'\",','\n','    \"applicationName\": \"FileRegistry\",','\n','    \"workflowName\": \"File\",','\n','    \"parameters\": [','\n','        {','\n','            \"name\": \"registryAddress\",','\n','            \"value\": \"',variables('RegistryAddress'),'\"','\n','        },','\n','        {  \"name\": \"fileId\", \"value\": \"',triggerBody()?['Id'],'\" },','\n','        { \"name\": \"location\", \"value\": \"',triggerBody()?['Path'],'\" },','\n','        { \"name\": \"fileHash\", \"value\": \"',body('Hash_File_Content'),'\" },','\n','        { \"name\": \"fileMetadataHash\", \"value\": \"',body('Hash_File_Metadata'),'\" },','\n','        { \"name\": \"contentType\", \"value\": \"',triggerBody()?['MediaType'],'\" },','\n','        { \"name\": \"etag\", \"value\": ',triggerBody()?['ETag'],' },','\n','        { \"name\": \"processedDateTime\", \"value\": \"',variables('ProcessedDateTime'),'\" }           ','\n','    ],','\n','    \"connectionId\": 1,','\n','    \"messageSchemaVersion\": \"1.0.0\",','\n','    \"messageName\": \"CreateContractRequest\"','\n','}'))}",
+                  "SessionId": "@variables('RequestId')"
+                },
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['servicebus_1']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "path": "[concat('/@{encodeURIComponent(encodeURIComponent(', '''', parameters('serviceBusQueue'), '''', '))}', '/messages')]",
+                "queries": {
+                  "systemProperties": "None"
+                }
+              }
             }
           },
           "parameters": {
@@ -267,26 +291,30 @@
             }
           },
           "triggers": {
-            "When_a_file_is_created_in_a_folder": {
+            "When_a_blob_is_added_or_modified_(properties_only)": {
               "type": "ApiConnection",
               "inputs": {
                 "host": {
                   "connection": {
-                    "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+                    "name": "@parameters('$connections')['azureblob']['connectionId']"
                   }
                 },
                 "method": "get",
-                "path": "[concat('/@{encodeURIComponent(encodeURIComponent(', '''', parameters('sharepointonlineWebsite'), '''', '))}', '/triggers/onnewfile')]",
+                "path": "/datasets/default/triggers/batch/onupdatedfile",
                 "queries": {
-                  "folderId": "[parameters('sharepointonlineFolder')]",
-                  "queryParametersSingleEncoded": true,
-                  "inferContentType": true
+                  "folderId": "JTJmbG9naWNhcHBzYW1wbGU=",
+                  "maxFileCount": 10
                 }
               },
               "recurrence": {
                 "frequency": "Minute",
                 "interval": 3
-              }
+              },
+              "metadata": {
+                "JTJmbG9naWNhcHBzYW1wbGU=": "/logicappsample",
+                "JTJmbWVkaWFpbmdyZXNz": "/mediaingress"
+              },
+              "splitOn": "@triggerBody()"
             }
           },
           "contentVersion": "1.0.0.0",
@@ -295,60 +323,60 @@
         "parameters": {
           "$connections": {
             "value": {
+              "azureblob": {
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'azureblob')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('azureBlobStorageConnectionName'))]",
+                "connectionName": "[parameters('azureBlobStorageConnectionName')]"
+              },
               "servicebus_1": {
                 "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'servicebus')]",
-                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('servicebusConnectionName'))]",
-                "connectionName": "[parameters('servicebusConnectionName')]"
-              },
-              "sharepointonline": {
-                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'sharepointonline')]",
-                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('sharepointonlineConnectionName'))]",
-                "connectionName": "[parameters('sharepointonlineConnectionName')]"
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('serviceBusConnectionName'))]",
+                "connectionName": "[parameters('serviceBusConnectionName')]"
               }
             }
           }
         }
       },
+      "tags": {
+        "sample": "azure_storage",
+        "displayName": "LogicApp"
+      },
+      "apiVersion": "2016-06-01",
       "dependsOn": [
-        "[resourceId('Microsoft.Web/sites/sourcecontrols', parameters('functionAppName'), 'web')]",
-        "[resourceId('Microsoft.Web/connections', parameters('servicebusConnectionName'))]",
-        "[resourceId('Microsoft.Web/connections', parameters('sharepointonlineConnectionName'))]"
+        "[resourceId('Microsoft.Web/connections', parameters('azureBlobStorageConnectionName'))]",
+        "[resourceId('Microsoft.Web/connections', parameters('serviceBusConnectionName'))]",
+        "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
       ]
     },
     {
       "type": "MICROSOFT.WEB/CONNECTIONS",
       "apiVersion": "2016-06-01",
-      "name": "[parameters('sharepointonlineConnectionName')]",
-      "location": "[parameters('logicAppLocation')]",
-      "properties": {
-        "api": {
-          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'sharepointonline')]"
-        },
-        "displayName": "[parameters('sharepointonlineConnectionDisplayName')]"
-      }
-    },
-    {
-      "type": "MICROSOFT.WEB/CONNECTIONS",
-      "apiVersion": "2016-06-01",
-      "name": "[parameters('servicebusConnectionName')]",
+      "name": "[parameters('serviceBusConnectionName')]",
       "location": "[parameters('logicAppLocation')]",
       "properties": {
         "api": {
           "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'servicebus')]"
         },
-        "displayName": "[parameters('servicebusConnectionDisplayName')]",
+        "displayName": "[parameters('serviceBusConnectionDisplayName')]",
         "parameterValues": {
-          "connectionString": "[parameters('servicebusConnectionString')]"
+          "connectionString": "[parameters('serviceBusConnectionString')]"
         }
       }
     },
     {
-      "type": "Microsoft.Storage/storageAccounts",
-      "name": "[variables('storageAccountName')]",
-      "apiVersion": "2015-06-15",
+      "type": "MICROSOFT.WEB/CONNECTIONS",
+      "apiVersion": "2016-06-01",
+      "name": "[parameters('azureBlobStorageConnectionName')]",
       "location": "[parameters('logicAppLocation')]",
       "properties": {
-        "accountType": "[variables('storageAccountType')]"
+        "api": {
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'azureblob')]"
+        },
+        "displayName": "[parameters('azureBlobStorageConnectionDisplayName')]",
+        "parameterValues": {
+          "accountName": "[parameters('azureBlobStorageAccountName')]",
+          "accessKey": "[parameters('azureBlobStorageAccessKey')]"
+        }
       }
     },
     {
@@ -365,7 +393,7 @@
     {
       "apiVersion": "2015-08-01",
       "type": "Microsoft.Web/sites",
-      "name": "[parameters('functionAppName')]",
+      "name": "[variables('functionAppName')]",
       "location": "[parameters('logicAppLocation')]",
       "kind": "functionapp",
       "dependsOn": [
@@ -390,7 +418,7 @@
             },
             {
               "name": "WEBSITE_CONTENTSHARE",
-              "value": "[toLower(parameters('functionAppName'))]"
+              "value": "[toLower(variables('functionAppName'))]"
             },
             {
               "name": "FUNCTIONS_EXTENSION_VERSION",
@@ -409,7 +437,7 @@
           "name": "web",
           "type": "sourcecontrols",
           "dependsOn": [
-            "[resourceId('Microsoft.Web/Sites', parameters('functionAppName'))]"
+            "[resourceId('Microsoft.Web/Sites', variables('functionAppName'))]"
           ],
           "properties": {
             "RepoUrl": "[variables('repoURL')]",
@@ -419,7 +447,6 @@
         }
       ]
     }
-
   ],
   "outputs": {}
 }
