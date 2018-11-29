@@ -87,7 +87,7 @@
     }
   },
   "variables": {
-    "repoUrl": "https://github.com/bretf-ik/FTPArmTemplate/tree/master/functions/twilio",
+    "repoUrl": "https://github.com/bretf-ik/FTPArmTemplate",
     "branch": "master",
     "functionName": "TwilioVoice",
     "hostingPlanName": "[parameters('functionAppName')]",
@@ -296,11 +296,29 @@
             {
               "name": "LogicAppEndpoint",
               "value": "[listCallbackURL(concat(resourceId('Microsoft.Logic/workflows/', parameters('logicAppName')), '/triggers/manual'), '2016-06-01').value]"
+            },
+            {
+              "name": "Project",
+              "value": "functions/twilio"
             }
           ]
         }
       },
       "resources": [
+        {
+          "apiVersion": "2015-08-01",
+          "name": "appsettings",
+          "type": "config",
+          "dependsOn": [
+            "[resourceId('Microsoft.Web/Sites', parameters('functionAppName'))]",
+            "[resourceId('Microsoft.Web/Sites/sourcecontrols', parameters('functionAppName'), 'web')]",
+            "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+          ],
+          "properties": {
+            "AzureWebJobsStorage": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]",
+            "AzureWebJobsDashboard": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]"
+          }
+        },
         {
           "apiVersion": "2015-08-01",
           "name": "web",
