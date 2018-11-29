@@ -5,13 +5,14 @@
     "logicAppName": {
       "type": "string",
       "minLength": 1,
+      "maxLength": 80,
       "metadata": {
         "description": "Name of the Logic App."
       }
     },
     "logicAppLocation": {
       "type": "string",
-      "minLength": 1,
+      "defaultValue": "[resourceGroup().location]",
       "allowedValues": [
         "[resourceGroup().location]",
         "eastasia",
@@ -39,7 +40,6 @@
         "westcentralus",
         "westus2"
       ],
-      "defaultValue": "[resourceGroup().location]",
       "metadata": {
         "description": "Location of the Logic App."
       }
@@ -51,86 +51,21 @@
         "description": "The name of the function app to create. Must be globally unique."
       }
     },
-    "FTPConnectionName": {
-      "type": "string",
-      "defaultValue": "ftp"
-    },
-    "FTPConnectionDisplayName": {
-      "type": "string",
-      "defaultValue": "FTPServer"
-    },
-    "FTPServerAddress": {
-      "type": "string",
-      "metadata": {
-        "description": "Server Address"
-      }
-    },
-    "FTPUserName": {
-      "type": "string",
-      "metadata": {
-        "description": "User Name"
-      }
-    },
-    "FTPPassword": {
-      "type": "securestring",
-      "metadata": {
-        "description": "Password"
-      }
-    },
-    "FTPServerPort": {
-      "type": "int",
-      "metadata": {
-        "description": "FTP Port Number (example: 21)"
-      },
-      "defaultValue": 21
-    },
-    "FTPIsSSL": {
-      "type": "bool",
-      "metadata": {
-        "description": "Enable SSL? (True/False)"
-      },
-      "defaultValue": false
-    },
-    "FTPIsBinaryTransport": {
-      "type": "bool",
-      "metadata": {
-        "description": "Enable Binary Transport? (True/False)"
-      },
-      "defaultValue": false
-    },
-    "FTPDisableCertificateValidation": {
-      "type": "bool",
-      "metadata": {
-        "description": "Disable Certificate Validation? (True/False)"
-      },
-      "defaultValue": false
-    },
-    "FTPCloseConnectionAfterRequestCompletion": {
-      "type": "bool",
-      "metadata": {
-        "description": "Close FTP connection everytime after request completes? (True/False)"
-      },
-      "defaultValue": false
-    },
-    "FTPFolder": {
-      "type": "string",
-      "defaultValue": "/"
-    },
-    "serviceBusConnectionName": {
+    "servicebusConnectionName": {
       "type": "string",
       "defaultValue": "servicebus",
       "metadata": {
         "description": "Service Bus Connection Name"
       }
     },
-    "serviceBusConnectionDisplayName": {
+    "servicebusConnectionDisplayName": {
       "type": "string",
       "defaultValue": "WorkbenchConnection",
       "metadata": {
         "description": "Service Bus Connection Display Name"
       }
     },
-    "serviceBusConnectionString": {
+    "servicebusConnectionString": {
       "type": "securestring",
       "metadata": {
         "description": "Azure Service Bus Connection String"
@@ -143,6 +78,14 @@
         "description": "Service Bus Queue Name"
       }
     },
+    "adobeCreativeCloudConnectionName": {
+      "type": "string",
+      "defaultValue": "adobecreativecloud-1"
+    },
+    "adobeCreativeCloudConnectionDisplayName": {
+      "type": "string",
+      "defaultValue": "Adobe Creative Cloud"
+    },
     "userChainIdentifier": {
       "type": "string",
       "defaultValue": "",
@@ -154,14 +97,14 @@
       "type": "string",
       "defaultValue": "",
       "metadata": {
-        "description": "Recall Registry Contract Address"
+        "description": "File Registry Contract Address"
       }
     }
   },
   "variables": {
     "repoUrl": "https://github.com/TonyChampion/testfunc.git",
     "branch": "master",
-    "functionName": "CSVParser",
+    "functionName": "GenericHashFunction",
     "hostingPlanName": "[parameters('functionAppName')]",
     "storageAccountName": "[concat(uniquestring(resourceGroup().id), 'azfunctions')]",
     "storageACcountid": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
@@ -169,12 +112,18 @@
   },
   "resources": [
     {
+      "name": "[parameters('logicAppName')]",
+      "type": "Microsoft.Logic/workflows",
+      "location": "[parameters('logicAppLocation')]",
+      "tags": {
+        "displayName": "LogicApp"
+      },
+      "apiVersion": "2016-06-01",
       "properties": {
-        "state": "Enabled",
         "definition": {
           "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
           "actions": {
-            "CSVParser": {
+            "Hash_File_Content": {
               "type": "Function",
               "inputs": {
                 "body": "@triggerBody()",
@@ -184,57 +133,22 @@
               },
               "runAfter": {}
             },
-            "For_each": {
-              "type": "Foreach",
-              "foreach": "@body('Parse_JSON')?['Rows']",
-              "actions": {
-                "Send_message": {
-                  "type": "ApiConnection",
-                  "inputs": {
-                    "host": {
-                      "connection": {
-                        "name": "@parameters('$connections')['servicebus_2']['connectionId']"
-                      }
-                    },
-                    "method": "post",
-                    "body": {
-                      "SessionId": "@variables('RequestId')",
-                      "ContentData": "@{base64(concat('{','\n','    \"requestId\": \"',variables('RequestId'),'\",','\n','    \"userChainIdentifier\": \"',variables('UserChainIdentifier'),'\",','\n','    \"applicationName\" : \"RecallEventRegistry2\",','\n','    \"workflowName\": \"RecallEvent2\",','\n','    \"Parameters\": [','\n','        { \"name\": \"_RegistryAddress\", \"value\" : \"',variables('RegistryAddress'),'\"},','\n','        { \"name\": \"_RecallDate\", \"value\": \"',items('For_each')?['Recall Date'],'\" },','\n','        { \"name\": \"_RecallNumber\", \"value\": \"',items('For_each')?['Recall Number'],'\" },','\n','        { \"name\": \"_RecallClass\", \"value\": \"',items('For_each')?['Recall Class'],'\" },','\n','        { \"name\": \"_Product\", \"value\": \"',items('For_each')?['Product'],'\" },','\n','        { \"name\": \"_RecallReason\", \"value\": \"',items('For_each')?['Reason for Recall'],'\" },','\n','        { \"name\": \"_PoundsRecalled\", \"value\": ',items('For_each')?['Pounds Recalled'],' }','\n','    ],','\n','    \"connectionId\": 1,','\n','    \"messageSchemaVersion\": \"1.0.0\",','\n','    \"messageName\": \"CreateContractRequest\"','\n','}'))}"
-                    },
-                    "path": "[concat('/@{encodeURIComponent(encodeURIComponent(', '''', parameters('serviceBusQueue'), '''', '))}', '/messages')]",
-                    "queries": {
-                      "systemProperties": "None"
-                    }
-                  },
-                  "runAfter": {
-                    "Set_ProcessDateTime": [
-                      "Succeeded"
-                    ]
-                  }
+            "Hash_Metadata": {
+              "type": "Function",
+              "inputs": {
+                "body": {
+                  "contentType": "@triggerBody()['event']['activitystreams:object']['xdmAsset:format']",
+                  "etag": "@triggerBody()['event']['activitystreams:object']['xdmAsset:asset_id']",
+                  "id": "@triggerBody()['event']['activitystreams:object']['xdmAsset:asset_id']",
+                  "name": "@triggerBody()['event']['activitystreams:object']['xdmAsset:asset_name']",
+                  "path": "@triggerBody()['event']['activitystreams:object']['xdmAsset:path']"
                 },
-                "Set_RequestId": {
-                  "type": "SetVariable",
-                  "inputs": {
-                    "name": "RequestId",
-                    "value": "@{guid()}"
-                  },
-                  "runAfter": {}
-                },
-                "Set_ProcessDateTime": {
-                  "type": "SetVariable",
-                  "inputs": {
-                    "name": "ProcessDateTime",
-                    "value": "@{utcNow()}"
-                  },
-                  "runAfter": {
-                    "Set_RequestId": [
-                      "Succeeded"
-                    ]
-                  }
+                "function": {
+                  "id": "[resourceId('Microsoft.Web/sites/functions', parameters('functionAppName'), variables('functionName'))]"
                 }
               },
               "runAfter": {
-                "Initialize_File_Registry_Address": [
+                "Hash_File_Content": [
                   "Succeeded"
                 ]
               }
@@ -245,12 +159,13 @@
                 "variables": [
                   {
                     "name": "RequestId",
-                    "type": "String"
+                    "type": "String",
+                    "value": "@{guid()}"
                   }
                 ]
               },
               "runAfter": {
-                "Parse_JSON": [
+                "Hash_Metadata": [
                   "Succeeded"
                 ]
               }
@@ -261,7 +176,8 @@
                 "variables": [
                   {
                     "name": "ProcessDateTime",
-                    "type": "String"
+                    "type": "String",
+                    "value": "@{utcNow()}"
                   }
                 ]
               },
@@ -305,52 +221,26 @@
                 ]
               }
             },
-            "Parse_JSON": {
-              "type": "ParseJson",
+            "Send_message": {
+              "type": "ApiConnection",
               "inputs": {
-                "content": "@body('CSVParser')",
-                "schema": {
-                  "properties": {
-                    "Rows": {
-                      "items": {
-                        "properties": {
-                          "Pounds Recalled": {
-                            "type": "string"
-                          },
-                          "Product": {
-                            "type": "string"
-                          },
-                          "Reason for Recall": {
-                            "type": "string"
-                          },
-                          "Recall Class": {
-                            "type": "string"
-                          },
-                          "Recall Date": {
-                            "type": "string"
-                          },
-                          "Recall Number": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "Recall Date",
-                          "Recall Number",
-                          "Recall Class",
-                          "Product",
-                          "Reason for Recall",
-                          "Pounds Recalled"
-                        ],
-                        "type": "object"
-                      },
-                      "type": "array"
-                    }
-                  },
-                  "type": "object"
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['servicebus_1']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "body": {
+                  "SessionId": "@variables('RequestId')",
+                  "ContentData": "@{base64(concat('{','\n','    \"requestId\": \"',variables('RequestId'),'\",','\n','    \"userChainIdentifier\": \"',variables('UserChainIdentifier'),'\",','\n','    \"applicationName\": \"FileRegistry\",','\n','    \"workflowName\": \"File\",','\n','    \"parameters\": [','\n','        {','\n','            \"name\": \"registryAddress\",','\n','            \"value\": \"',variables('RegistryAddress'),'\"','\n','        },','\n','        { \"name\": \"fileId\", \"value\": \"',triggerOutputs()['headers']['x-ms-file-id'],'\" },','\n','        { \"name\": \"location\", \"value\": \"',base64ToString(triggerOutputs()['headers']['x-ms-file-path-encoded']),'\" },','\n','        { \"name\": \"fileHash\", \"value\": \"',body('Hash_File_Content'),'\" },','\n','        { \"name\": \"fileMetadataHash\", \"value\": \"',body('Hash_Metadata'),'\" },','\n','        { \"name\": \"contentType\", \"value\": \"',triggerOutputs()['headers']['Content-Type'],'\" },','\n','        { \"name\": \"etag\", \"value\": \"',triggerOutputs()['headers']['x-ms-file-etag'],'\"},','\n','        { \"name\": \"processedDateTime\", \"value\": \"',variables('ProcessDateTime'),'\" }           ','\n','    ],','\n','    \"connectionId\": 1,','\n','    \"messageSchemaVersion\": \"1.0.0\",','\n','    \"messageName\": \"CreateContractRequest\"','\n','}'))}"
+                },
+                "path": "[concat('/@{encodeURIComponent(encodeURIComponent(', '''', parameters('serviceBusQueue'), '''', '))}', '/messages')]",
+                "queries": {
+                  "systemProperties": "None"
                 }
               },
               "runAfter": {
-                "CSVParser": [
+                "Initialize_File_Registry_Address": [
                   "Succeeded"
                 ]
               }
@@ -363,29 +253,18 @@
             }
           },
           "triggers": {
-            "When_a_file_is_added_or_modified": {
-              "type": "ApiConnection",
+            "When_an_asset_is_added": {
+              "type": "ApiConnectionWebhook",
               "inputs": {
                 "host": {
                   "connection": {
-                    "name": "@parameters('$connections')['ftp_1']['connectionId']"
+                    "name": "@parameters('$connections')['adobecreativecloud']['connectionId']"
                   }
                 },
-                "method": "get",
-                "path": "/datasets/default/triggers/onupdatedfile",
-                "queries": {
-                  "folderId": "L2Nzdg==",
-                  "queryParametersSingleEncoded": true,
-                  "includeFileContent": true,
-                  "inferContentType": true
-                }
-              },
-              "recurrence": {
-                "frequency": "Minute",
-                "interval": 3
-              },
-              "metadata": {
-                "L2Nzdg==": "[parameters('FTPFolder')]"
+                "body": {
+                  "webhookUrl": "@{listCallbackUrl()}"
+                },
+                "path": "/webhook1/csm/cc/events/asset_created"
               }
             }
           },
@@ -395,69 +274,51 @@
         "parameters": {
           "$connections": {
             "value": {
-              "servicebus_2": {
-                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'servicebus')]",
-                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('serviceBusConnectionName'))]",
-                "connectionName": "[parameters('serviceBusConnectionName')]"
+              "adobecreativecloud": {
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'adobecreativecloud')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('adobeCreativeCloudConnectionName'))]",
+                "connectionName": "[parameters('adobeCreativeCloudConnectionName')]"
               },
-              "ftp_1": {
-                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'ftp')]",
-                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('FTPConnectionName'))]",
-                "connectionName": "[parameters('FTPConnectionName')]"
+              "servicebus_1": {
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'servicebus')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('servicebusConnectionName'))]",
+                "connectionName": "[parameters('servicebusConnectionName')]"
               }
             }
           }
         }
       },
-      "name": "[parameters('logicAppName')]",
-      "type": "Microsoft.Logic/workflows",
-      "location": "[parameters('logicAppLocation')]",
-      "tags": {
-        "sample": "ftp_receive",
-        "displayName": "LogicApp"
-      },
-      "apiVersion": "2016-06-01",
       "dependsOn": [
+        "[resourceId('Microsoft.Web/connections', parameters('adobeCreativeCloudConnectionName'))]",
         "[resourceId('Microsoft.Web/sites/sourcecontrols', parameters('functionAppName'), 'web')]",
-        "[resourceId('Microsoft.Web/connections', parameters('serviceBusConnectionName'))]",
-        "[resourceId('Microsoft.Web/connections', parameters('FTPConnectionName'))]"
+        "[resourceId('Microsoft.Web/connections', parameters('servicebusConnectionName'))]"
       ]
     },
     {
       "type": "MICROSOFT.WEB/CONNECTIONS",
       "apiVersion": "2016-06-01",
-      "name": "[parameters('serviceBusConnectionName')]",
+      "name": "[parameters('servicebusConnectionName')]",
       "location": "[parameters('logicAppLocation')]",
       "properties": {
         "api": {
           "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'servicebus')]"
         },
-        "displayName": "[parameters('serviceBusConnectionDisplayName')]",
+        "displayName": "[parameters('servicebusConnectionDisplayName')]",
         "parameterValues": {
-          "connectionString": "[parameters('serviceBusConnectionString')]"
+          "connectionString": "[parameters('servicebusConnectionString')]"
         }
       }
     },
     {
       "type": "MICROSOFT.WEB/CONNECTIONS",
       "apiVersion": "2016-06-01",
-      "name": "[parameters('FTPConnectionName')]",
+      "name": "[parameters('adobeCreativeCloudConnectionName')]",
       "location": "[parameters('logicAppLocation')]",
       "properties": {
         "api": {
-          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'ftp')]"
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'adobecreativecloud')]"
         },
-        "displayName": "[parameters('FTPConnectionDisplayName')]",
-        "parameterValues": {
-          "serverAddress": "[parameters('FTPServerAddress')]",
-          "userName": "[parameters('FTPUserName')]",
-          "password": "[parameters('FTPPassword')]",
-          "serverPort": "[parameters('FTPServerPort')]",
-          "isSSL": "[parameters('FTPIsSSL')]",
-          "isBinaryTransport": "[parameters('FTPIsBinaryTransport')]",
-          "disableCertificateValidation": "[parameters('FTPDisableCertificateValidation')]",
-          "closeConnectionAfterRequestCompletion": "[parameters('FTPCloseConnectionAfterRequestCompletion')]"
-        }
+        "displayName": "[parameters('adobeCreativeCloudConnectionDisplayName')]"
       }
     },
     {
