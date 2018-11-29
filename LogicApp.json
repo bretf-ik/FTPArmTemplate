@@ -116,22 +116,12 @@
     "repoUrl": "https://github.com/TonyChampion/testfunc.git",
     "branch": "master",
     "functionName": "GenericHashFunction",
-    "hostingPlanName": "fileHashFunctionPlan",
-    "functionAppName": "fileHashFunction",
+    "hostingPlanName": "[parameters('functionAppName')]",
     "storageAccountName": "[concat(uniquestring(resourceGroup().id), 'azfunctions')]",
     "storageACcountid": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
     "storageAccountType": "Standard_LRS"
   },
   "resources": [
-    {
-      "type": "Microsoft.Storage/storageAccounts",
-      "name": "[variables('storageAccountName')]",
-      "apiVersion": "2015-06-15",
-      "location": "[parameters('logicAppLocation')]",
-      "properties": {
-        "accountType": "[variables('storageAccountType')]"
-      }
-    },
     {
       "name": "[parameters('logicAppName')]",
       "type": "Microsoft.Logic/workflows",
@@ -162,7 +152,7 @@
               "inputs": {
                 "body": "@body('Get_blob_content').$content",
                 "function": {
-                  "id": "[resourceId('Microsoft.Web/sites/functions', variables('functionAppName'), variables('functionName'))]"
+                  "id": "[resourceId('Microsoft.Web/sites/functions', parameters('functionAppName'), variables('functionName'))]"
                 }
               },
               "runAfter": {
@@ -182,7 +172,7 @@
                   "path": "@triggerBody()?['Path']"
                 },
                 "function": {
-                  "id": "[resourceId('Microsoft.Web/sites/functions', variables('functionAppName'), variables('functionName'))]"
+                  "id": "[resourceId('Microsoft.Web/sites/functions', parameters('functionAppName'), variables('functionName'))]"
                 }
               },
               "runAfter": {
@@ -345,8 +335,17 @@
       "dependsOn": [
         "[resourceId('Microsoft.Web/connections', parameters('azureBlobStorageConnectionName'))]",
         "[resourceId('Microsoft.Web/connections', parameters('serviceBusConnectionName'))]",
-        "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
+        "[resourceId('Microsoft.Web/sites/sourcecontrols', parameters('functionAppName'), 'web')]"
       ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "name": "[variables('storageAccountName')]",
+      "apiVersion": "2015-06-15",
+      "location": "[parameters('logicAppLocation')]",
+      "properties": {
+        "accountType": "[variables('storageAccountType')]"
+      }
     },
     {
       "type": "MICROSOFT.WEB/CONNECTIONS",
@@ -393,7 +392,7 @@
     {
       "apiVersion": "2015-08-01",
       "type": "Microsoft.Web/sites",
-      "name": "[variables('functionAppName')]",
+      "name": "[parameters('functionAppName')]",
       "location": "[parameters('logicAppLocation')]",
       "kind": "functionapp",
       "dependsOn": [
@@ -418,7 +417,7 @@
             },
             {
               "name": "WEBSITE_CONTENTSHARE",
-              "value": "[toLower(variables('functionAppName'))]"
+              "value": "[toLower(parameters('functionAppName'))]"
             },
             {
               "name": "FUNCTIONS_EXTENSION_VERSION",
@@ -437,7 +436,7 @@
           "name": "web",
           "type": "sourcecontrols",
           "dependsOn": [
-            "[resourceId('Microsoft.Web/Sites', variables('functionAppName'))]"
+            "[resourceId('Microsoft.Web/Sites', parameters('functionAppName'))]"
           ],
           "properties": {
             "RepoUrl": "[variables('repoURL')]",
