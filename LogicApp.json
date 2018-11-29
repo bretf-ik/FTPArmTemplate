@@ -89,7 +89,7 @@
   "variables": {
     "repoUrl": "https://github.com/TonyChampion/testfunc.git",
     "branch": "master",
-    "functionName": "TwilioSMS",
+    "functionName": "TwilioVoice",
     "hostingPlanName": "[parameters('functionAppName')]",
     "storageAccountName": "[concat(uniquestring(resourceGroup().id), 'azfunctions')]",
     "storageACcountid": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
@@ -134,7 +134,7 @@
                   "SessionId": "@variables('RequestId')",
                   "ContentData": "@{base64(concat('{    \"requestId\": \"',variables('RequestId'),'\",   ','\n',' \"userChainIdentifier\": \"',variables('UserChainIdentifier'),'\",','\n','    \"applicationName\": \"SimpleMarketplace\",','\n','    \"workflowName\": \"SimpleMarketplace\",','\n','    \"parameters\": [        {            \"name\": \"description\",            \"value\": \"',triggerBody()?['Description'],'\"        }, { \"name\": \"price\", \"value\": \"',triggerBody()?['ListingAmount'],'\" }    ],    \"connectionId\": 1,    \"messageSchemaVersion\": \"1.0.0\",    \"messageName\": \"CreateContractRequest\"}'))}"
                 },
-                "path": "/@{encodeURIComponent(encodeURIComponent('ingressqueue'))}/messages",
+                "path": "[concat('/@{encodeURIComponent(encodeURIComponent(', '''', parameters('serviceBusQueue'), '''', '))}', '/messages')]",
                 "queries": {
                   "systemProperties": "None"
                 }
