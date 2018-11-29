@@ -87,7 +87,7 @@
     }
   },
   "variables": {
-    "repoUrl": "https://github.com/TonyChampion/testfunc.git",
+    "repoUrl": "https://github.com/bretf-ik/FTPArmTemplate/tree/master/functions/twilio",
     "branch": "master",
     "functionName": "TwilioVoice",
     "hostingPlanName": "[parameters('functionAppName')]",
