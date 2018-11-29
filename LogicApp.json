@@ -51,6 +51,28 @@
         "description": "The name of the function app to create. Must be globally unique."
       }
     },
+    "sharepointonlineConnectionName": {
+      "type": "string",
+      "defaultValue": "sharepointonline"
+    },
+    "sharepointonlineConnectionDisplayName": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "sharepointonlineWebsite": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "The URL of the SharePoint site"
+      }
+    },
+    "sharepointonlineFolder": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "The folder path to monitor for file additions"
+      }
+    },
     "servicebusConnectionName": {
       "type": "string",
       "defaultValue": "servicebus",
@@ -77,14 +99,6 @@
       "metadata": {
         "description": "Service Bus Queue Name"
       }
-    },
-    "adobeCreativeCloudConnectionName": {
-      "type": "string",
-      "defaultValue": "adobecreativecloud-1"
-    },
-    "adobeCreativeCloudConnectionDisplayName": {
-      "type": "string",
-      "defaultValue": "Adobe Creative Cloud"
     },
     "userChainIdentifier": {
       "type": "string",
@@ -126,7 +140,7 @@
             "Hash_File_Content": {
               "type": "Function",
               "inputs": {
-                "body": "@triggerBody()",
+                "body": "@triggerBody().$content",
                 "function": {
                   "id": "[resourceId('Microsoft.Web/sites/functions', parameters('functionAppName'), variables('functionName'))]"
                 }
@@ -137,11 +151,11 @@
               "type": "Function",
               "inputs": {
                 "body": {
-                  "contentType": "@triggerBody()['event']['activitystreams:object']['xdmAsset:format']",
-                  "etag": "@triggerBody()['event']['activitystreams:object']['xdmAsset:asset_id']",
-                  "id": "@triggerBody()['event']['activitystreams:object']['xdmAsset:asset_id']",
-                  "name": "@triggerBody()['event']['activitystreams:object']['xdmAsset:asset_name']",
-                  "path": "@triggerBody()['event']['activitystreams:object']['xdmAsset:path']"
+                  "contentType": "@triggerOutputs()['headers']['Content-Type']",
+                  "etag": "@triggerOutputs()['headers']['x-ms-file-etag']",
+                  "id": "@triggerOutputs()['headers']['x-ms-file-id']",
+                  "name": "@triggerOutputs()['headers']['x-ms-file-name-encoded']",
+                  "path": "@triggerOutputs()['headers']['x-ms-file-path-encoded']"
                 },
                 "function": {
                   "id": "[resourceId('Microsoft.Web/sites/functions', parameters('functionAppName'), variables('functionName'))]"
@@ -187,6 +201,30 @@
                 ]
               }
             },
+            "Send_message": {
+              "type": "ApiConnection",
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['servicebus_1']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "body": {
+                  "SessionId": "@variables('RequestId')",
+                  "ContentData": "@{base64(concat('{','\n','    \"requestId\": \"',variables('RequestId'),'\",','\n','    \"userChainIdentifier\": \"',variables('UserChainIdentifier'),'\",','\n','    \"applicationName\": \"FileRegistry\",','\n','    \"workflowName\": \"File\",','\n','    \"parameters\": [','\n','        {','\n','            \"name\": \"registryAddress\",','\n','            \"value\": \"',variables('RegistryAddress'),'\"','\n','        },','\n','        { \"name\": \"fileId\", \"value\": \"',triggerOutputs()['headers']['x-ms-file-id'],'\" },','\n','        { \"name\": \"location\", \"value\": \"',base64ToString(triggerOutputs()['headers']['x-ms-file-path-encoded']),'\" },','\n','        { \"name\": \"fileHash\", \"value\": \"',body('Hash_File_Content'),'\" },','\n','        { \"name\": \"fileMetadataHash\", \"value\": \"',body('Hash_Metadata'),'\" },','\n','        { \"name\": \"contentType\", \"value\": \"',triggerOutputs()['headers']['Content-Type'],'\" },','\n','        { \"name\": \"etag\", \"value\": \"',triggerOutputs()['headers']['x-ms-file-etag'],'\"},','\n','        { \"name\": \"processedDateTime\", \"value\": \"',variables('ProcessDateTime'),'\" }           ','\n','    ],','\n','    \"connectionId\": 1,','\n','    \"messageSchemaVersion\": \"1.0.0\",','\n','    \"messageName\": \"CreateContractRequest\"','\n','}'))}"
+                },
+                "path": "[concat('/@{encodeURIComponent(encodeURIComponent(', '''', parameters('serviceBusQueue'), '''', '))}', '/messages')]",
+                "queries": {
+                  "systemProperties": "None"
+                }
+              },
+              "runAfter": {
+                "Initialize_File_Registry_Address": [
+                  "Succeeded"
+                ]
+              }
+            },
             "Initialize_UserChainIdentifier": {
               "type": "InitializeVariable",
               "inputs": {
@@ -220,30 +258,6 @@
                   "Succeeded"
                 ]
               }
-            },
-            "Send_message": {
-              "type": "ApiConnection",
-              "inputs": {
-                "host": {
-                  "connection": {
-                    "name": "@parameters('$connections')['servicebus_1']['connectionId']"
-                  }
-                },
-                "method": "post",
-                "body": {
-                  "SessionId": "@variables('RequestId')",
-                  "ContentData": "@{base64(concat('{','\n','    \"requestId\": \"',variables('RequestId'),'\",','\n','    \"userChainIdentifier\": \"',variables('UserChainIdentifier'),'\",','\n','    \"applicationName\": \"FileRegistry\",','\n','    \"workflowName\": \"File\",','\n','    \"parameters\": [','\n','        {','\n','            \"name\": \"registryAddress\",','\n','            \"value\": \"',variables('RegistryAddress'),'\"','\n','        },','\n','        { \"name\": \"fileId\", \"value\": \"',triggerOutputs()['headers']['x-ms-file-id'],'\" },','\n','        { \"name\": \"location\", \"value\": \"',base64ToString(triggerOutputs()['headers']['x-ms-file-path-encoded']),'\" },','\n','        { \"name\": \"fileHash\", \"value\": \"',body('Hash_File_Content'),'\" },','\n','        { \"name\": \"fileMetadataHash\", \"value\": \"',body('Hash_Metadata'),'\" },','\n','        { \"name\": \"contentType\", \"value\": \"',triggerOutputs()['headers']['Content-Type'],'\" },','\n','        { \"name\": \"etag\", \"value\": \"',triggerOutputs()['headers']['x-ms-file-etag'],'\"},','\n','        { \"name\": \"processedDateTime\", \"value\": \"',variables('ProcessDateTime'),'\" }           ','\n','    ],','\n','    \"connectionId\": 1,','\n','    \"messageSchemaVersion\": \"1.0.0\",','\n','    \"messageName\": \"CreateContractRequest\"','\n','}'))}"
-                },
-                "path": "[concat('/@{encodeURIComponent(encodeURIComponent(', '''', parameters('serviceBusQueue'), '''', '))}', '/messages')]",
-                "queries": {
-                  "systemProperties": "None"
-                }
-              },
-              "runAfter": {
-                "Initialize_File_Registry_Address": [
-                  "Succeeded"
-                ]
-              }
             }
           },
           "parameters": {
@@ -253,18 +267,25 @@
             }
           },
           "triggers": {
-            "When_an_asset_is_added": {
-              "type": "ApiConnectionWebhook",
+            "When_a_file_is_created_in_a_folder": {
+              "type": "ApiConnection",
               "inputs": {
                 "host": {
                   "connection": {
-                    "name": "@parameters('$connections')['adobecreativecloud']['connectionId']"
+                    "name": "@parameters('$connections')['sharepointonline']['connectionId']"
                   }
                 },
-                "body": {
-                  "webhookUrl": "@{listCallbackUrl()}"
-                },
-                "path": "/webhook1/csm/cc/events/asset_created"
+                "method": "get",
+                "path": "[concat('/@{encodeURIComponent(encodeURIComponent(', '''', parameters('sharepointonlineWebsite'), '''', '))}', '/triggers/onnewfile')]",
+                "queries": {
+                  "folderId": "[parameters('sharepointonlineFolder')]",
+                  "queryParametersSingleEncoded": true,
+                  "inferContentType": true
+                }
+              },
+              "recurrence": {
+                "frequency": "Minute",
+                "interval": 3
               }
             }
           },
@@ -274,25 +295,37 @@
         "parameters": {
           "$connections": {
             "value": {
-              "adobecreativecloud": {
-                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'adobecreativecloud')]",
-                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('adobeCreativeCloudConnectionName'))]",
-                "connectionName": "[parameters('adobeCreativeCloudConnectionName')]"
-              },
               "servicebus_1": {
                 "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'servicebus')]",
                 "connectionId": "[resourceId('Microsoft.Web/connections', parameters('servicebusConnectionName'))]",
                 "connectionName": "[parameters('servicebusConnectionName')]"
+              },
+              "sharepointonline": {
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'sharepointonline')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('sharepointonlineConnectionName'))]",
+                "connectionName": "[parameters('sharepointonlineConnectionName')]"
               }
             }
           }
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Web/connections', parameters('adobeCreativeCloudConnectionName'))]",
         "[resourceId('Microsoft.Web/sites/sourcecontrols', parameters('functionAppName'), 'web')]",
-        "[resourceId('Microsoft.Web/connections', parameters('servicebusConnectionName'))]"
+        "[resourceId('Microsoft.Web/connections', parameters('servicebusConnectionName'))]",
+        "[resourceId('Microsoft.Web/connections', parameters('sharepointonlineConnectionName'))]"
       ]
+    },
+    {
+      "type": "MICROSOFT.WEB/CONNECTIONS",
+      "apiVersion": "2016-06-01",
+      "name": "[parameters('sharepointonlineConnectionName')]",
+      "location": "[parameters('logicAppLocation')]",
+      "properties": {
+        "api": {
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'sharepointonline')]"
+        },
+        "displayName": "[parameters('sharepointonlineConnectionDisplayName')]"
+      }
     },
     {
       "type": "MICROSOFT.WEB/CONNECTIONS",
@@ -307,18 +340,6 @@
         "parameterValues": {
           "connectionString": "[parameters('servicebusConnectionString')]"
         }
-      }
-    },
-    {
-      "type": "MICROSOFT.WEB/CONNECTIONS",
-      "apiVersion": "2016-06-01",
-      "name": "[parameters('adobeCreativeCloudConnectionName')]",
-      "location": "[parameters('logicAppLocation')]",
-      "properties": {
-        "api": {
-          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'adobecreativecloud')]"
-        },
-        "displayName": "[parameters('adobeCreativeCloudConnectionDisplayName')]"
       }
     },
     {
@@ -398,6 +419,7 @@
         }
       ]
     }
+
   ],
   "outputs": {}
 }
