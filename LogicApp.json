@@ -51,21 +51,36 @@
         "description": "The name of the function app to create. Must be globally unique."
       }
     },
-    "servicebusConnectionName": {
+    "boxConnectionName": {
+      "type": "string",
+      "defaultValue": "box"
+    },
+    "boxConnectionDisplayName": {
+      "type": "string",
+      "defaultValue": "box-connection"
+    },
+    "boxFolder": {
+      "type": "string",
+      "defaultValue": "/",
+      "metadata": {
+        "description": "The folder to monitor for new files"
+      }
+    },
+    "serviceBusConnectionName": {
       "type": "string",
       "defaultValue": "servicebus",
       "metadata": {
         "description": "Service Bus Connection Name"
       }
     },
-    "servicebusConnectionDisplayName": {
+    "serviceBusConnectionDisplayName": {
       "type": "string",
       "defaultValue": "WorkbenchConnection",
       "metadata": {
         "description": "Service Bus Connection Display Name"
       }
     },
-    "servicebusConnectionString": {
+    "serviceBusConnectionString": {
       "type": "securestring",
       "metadata": {
         "description": "Azure Service Bus Connection String"
@@ -84,12 +99,19 @@
       "metadata": {
         "description": "User Chain Identifier"
       }
+    },
+    "registryAddress": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "File Registry Contract Address"
+      }
     }
   },
   "variables": {
-    "repoUrl": "https://github.com/bretf-ik/FTPArmTemplate",
+    "repoUrl": "https://github.com/TonyChampion/testfunc.git",
     "branch": "master",
-    "functionName": "TwilioVoice",
+    "functionName": "GenericHashFunction",
     "hostingPlanName": "[parameters('functionAppName')]",
     "storageAccountName": "[concat(uniquestring(resourceGroup().id), 'azfunctions')]",
     "storageACcountid": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
@@ -97,18 +119,42 @@
   },
   "resources": [
     {
-      "name": "[parameters('logicAppName')]",
-      "type": "Microsoft.Logic/workflows",
-      "location": "[parameters('logicAppLocation')]",
-      "tags": {
-        "displayName": "LogicApp"
-      },
-      "apiVersion": "2016-06-01",
       "properties": {
+        "state": "Enabled",
         "definition": {
           "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
           "actions": {
-            "Initialize_Request_Id": {
+            "Hash_File_Content": {
+              "type": "Function",
+              "inputs": {
+                "body": "@triggerBody()['$content']",
+                "function": {
+                  "id": "[resourceId('Microsoft.Web/sites/functions', parameters('functionAppName'), variables('functionName'))]"
+                }
+              },
+              "runAfter": {
+                "Hash_File_Metadata": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Hash_File_Metadata": {
+              "type": "Function",
+              "inputs": {
+                "body": {
+                  "contentType": "@triggerOutputs()['headers']['Content-Type']",
+                  "etag": "@triggerOutputs()['headers']['x-ms-file-etag']",
+                  "id": "@triggerOutputs()['headers']['x-ms-file-id']",
+                  "name": "@triggerOutputs()['headers']['x-ms-file-name-encoded']",
+                  "path": "@triggerOutputs()['headers']['x-ms-file-path-encoded']"
+                },
+                "function": {
+                  "id": "[resourceId('Microsoft.Web/sites/functions', parameters('functionAppName'), variables('functionName'))]"
+                }
+              },
+              "runAfter": {}
+            },
+            "Initialize_RequestId": {
               "type": "InitializeVariable",
               "inputs": {
                 "variables": [
@@ -119,7 +165,28 @@
                   }
                 ]
               },
-              "runAfter": {}
+              "runAfter": {
+                "Hash_File_Content": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Initialize_ProcessDateTime": {
+              "type": "InitializeVariable",
+              "inputs": {
+                "variables": [
+                  {
+                    "name": "ProcessDateTime",
+                    "type": "String",
+                    "value": "@{utcNow()}"
+                  }
+                ]
+              },
+              "runAfter": {
+                "Initialize_RequestId": [
+                  "Succeeded"
+                ]
+              }
             },
             "Send_message": {
               "type": "ApiConnection",
@@ -132,7 +199,7 @@
                 "method": "post",
                 "body": {
                   "SessionId": "@variables('RequestId')",
-                  "ContentData": "@{base64(concat('{    \"requestId\": \"',variables('RequestId'),'\",   ','\n',' \"userChainIdentifier\": \"',variables('UserChainIdentifier'),'\",','\n','    \"applicationName\": \"SimpleMarketplace\",','\n','    \"workflowName\": \"SimpleMarketplace\",','\n','    \"parameters\": [        {            \"name\": \"description\",            \"value\": \"',triggerBody()?['Description'],'\"        }, { \"name\": \"price\", \"value\": \"',triggerBody()?['ListingAmount'],'\" }    ],    \"connectionId\": 1,    \"messageSchemaVersion\": \"1.0.0\",    \"messageName\": \"CreateContractRequest\"}'))}"
+                  "ContentData": "@{base64(concat('{','\n','    \"requestId\": \"',variables('RequestId'),'\",','\n','    \"userChainIdentifier\": \"',variables('UserChainIdentifier'),'\",','\n','    \"applicationName\": \"FileRegistry\",','\n','    \"workflowName\": \"File\",','\n','    \"parameters\": [','\n','        {','\n','            \"name\": \"registryAddress\",','\n','            \"value\": \"',variables('RegistryAddress'),'\"','\n','        },','\n','        { \"name\": \"fileId\", \"value\": \"',triggerOutputs()['headers']['x-ms-file-id'],'\" },','\n','        { \"name\": \"location\", \"value\": \"',base64(triggerOutputs()['headers']['x-ms-file-path-encoded']),'\" },','\n','        { \"name\": \"fileHash\", \"value\": \"',body('Hash_File_Content'),'\" },','\n','        { \"name\": \"fileMetadataHash\", \"value\": \"',body('Hash_File_Metadata'),'\" },','\n','        { \"name\": \"contentType\", \"value\": \"',triggerOutputs()['headers']['Content-Type'],'\" },','\n','        { \"name\": \"etag\", \"value\": ',triggerOutputs()['headers']['x-ms-file-etag'],'},','\n','        { \"name\": \"processedDateTime\", \"value\": \"',variables('ProcessDateTime'),'\" }           ','\n','    ],','\n','    \"connectionId\": 1,','\n','    \"messageSchemaVersion\": \"1.0.0\",','\n','    \"messageName\": \"CreateContractRequest\"','\n','}'))}"
                 },
                 "path": "[concat('/@{encodeURIComponent(encodeURIComponent(', '''', parameters('serviceBusQueue'), '''', '))}', '/messages')]",
                 "queries": {
@@ -140,24 +207,12 @@
                 }
               },
               "runAfter": {
-                "Initialize_User_Chain_Identifier": [
+                "Initialize_File_Registry_Address": [
                   "Succeeded"
                 ]
               }
             },
-            "Response": {
-              "type": "Response",
-              "kind": "http",
-              "inputs": {
-                "statusCode": 200
-              },
-              "runAfter": {
-                "Send_message": [
-                  "Succeeded"
-                ]
-              }
-            },
-            "Initialize_User_Chain_Identifier": {
+            "Initialize_UserChainIdentifier": {
               "type": "InitializeVariable",
               "inputs": {
                 "variables": [
@@ -169,7 +224,24 @@
                 ]
               },
               "runAfter": {
-                "Initialize_Request_Id": [
+                "Initialize_ProcessDateTime": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Initialize_File_Registry_Address": {
+              "type": "InitializeVariable",
+              "inputs": {
+                "variables": [
+                  {
+                    "name": "RegistryAddress",
+                    "type": "String",
+                    "value": "[parameters('registryAddress')]"
+                  }
+                ]
+              },
+              "runAfter": {
+                "Initialize_UserChainIdentifier": [
                   "Succeeded"
                 ]
               }
@@ -182,21 +254,29 @@
             }
           },
           "triggers": {
-            "manual": {
-              "type": "Request",
-              "kind": "Http",
+            "When_a_file_is_created": {
+              "type": "ApiConnection",
               "inputs": {
-                "schema": {
-                  "properties": {
-                    "Description": {
-                      "type": "string"
-                    },
-                    "ListingAmount": {
-                      "type": "integer"
-                    }
-                  },
-                  "type": "object"
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['box']['connectionId']"
+                  }
+                },
+                "method": "get",
+                "path": "/datasets/default/triggers/onnewfile",
+                "queries": {
+                  "folderId": "57787303498",
+                  "queryParametersSingleEncoded": true,
+                  "inferContentType": true
                 }
+              },
+              "recurrence": {
+                "frequency": "Minute",
+                "interval": 3
+              },
+              "metadata": {
+                "0": "/",
+                "57787303498": "[parameters('boxFolder')]"
               }
             }
           },
@@ -208,29 +288,55 @@
             "value": {
               "servicebus_1": {
                 "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'servicebus')]",
-                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('servicebusConnectionName'))]",
-                "connectionName": "[parameters('servicebusConnectionName')]"
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('serviceBusConnectionName'))]",
+                "connectionName": "[parameters('serviceBusConnectionName')]"
+              },
+              "box": {
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'box')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('boxConnectionName'))]",
+                "connectionName": "[parameters('boxConnectionName')]"
               }
             }
           }
         }
       },
+      "name": "[parameters('logicAppName')]",
+      "type": "Microsoft.Logic/workflows",
+      "location": "[parameters('logicAppLocation')]",
+      "tags": {
+        "displayName": "LogicApp"
+      },
+      "apiVersion": "2016-06-01",
       "dependsOn": [
-        "[resourceId('Microsoft.Web/connections', parameters('servicebusConnectionName'))]"
+        "[resourceId('Microsoft.Web/sites/sourcecontrols', parameters('functionAppName'), 'web')]",
+        "[resourceId('Microsoft.Web/connections', parameters('serviceBusConnectionName'))]",
+        "[resourceId('Microsoft.Web/connections', parameters('boxConnectionName'))]"
       ]
     },
     {
       "type": "MICROSOFT.WEB/CONNECTIONS",
       "apiVersion": "2016-06-01",
-      "name": "[parameters('servicebusConnectionName')]",
-      "location": "[parameters('logicAppLocation')]",
+      "name": "[parameters('boxConnectionName')]",
+      "location": "parameters('logicAppLocation')",
+      "properties": {
+        "api": {
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'box')]"
+        },
+        "displayName": "[parameters('boxConnectionDisplayName')]"
+      }
+    },
+    {
+      "type": "MICROSOFT.WEB/CONNECTIONS",
+      "apiVersion": "2016-06-01",
+      "name": "[parameters('serviceBusConnectionName')]",
+      "location": "parameters('logicAppLocation')",
       "properties": {
         "api": {
           "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'servicebus')]"
         },
-        "displayName": "[parameters('servicebusConnectionDisplayName')]",
+        "displayName": "[parameters('serviceBusConnectionDisplayName')]",
         "parameterValues": {
-          "connectionString": "[parameters('servicebusConnectionString')]"
+          "connectionString": "[parameters('serviceBusConnectionString')]"
         }
       }
     },
@@ -262,8 +368,7 @@
       "kind": "functionapp",
       "dependsOn": [
         "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
-        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
-        "[resourceId('Microsoft.Logic/workflows', parameters('logicAppName'))]"
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
       ],
       "properties": {
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
@@ -292,34 +397,11 @@
             {
               "name": "WEBSITE_NODE_DEFAULT_VERSION",
               "value": "6.5.0"
-            },
-            {
-              "name": "Project",
-              "value": "functions/twilio"
             }
           ]
         }
       },
       "resources": [
-        {
-          "apiVersion": "2015-08-01",
-          "name": "appsettings",
-          "type": "config",
-          "dependsOn": [
-            "[resourceId('Microsoft.Web/Sites', parameters('functionAppName'))]",
-            "[resourceId('Microsoft.Web/Sites/sourcecontrols', parameters('functionAppName'), 'web')]",
-            "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
-          ],
-          "properties": {
-            "AzureWebJobsStorage": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]",
-            "AzureWebJobsDashboard": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]",
-            "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]",
-            "WEBSITE_CONTENTSHARE": "[toLower(parameters('functionAppName'))]",
-            "FUNCTIONS_EXTENSION_VERSION": "~2",
-            "WEBSITE_NODE_DEFAULT_VERSION": "6.5.0",
-            "LogicAppEndpoint": "[listCallbackURL(concat(resourceId('Microsoft.Logic/workflows/', parameters('logicAppName')), '/triggers/manual'), '2016-06-01').value]"
-          }
-        },
         {
           "apiVersion": "2015-08-01",
           "name": "web",
