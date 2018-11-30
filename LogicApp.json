@@ -277,26 +277,26 @@
               "name": "AzureWebJobsStorage",
               "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]"
             },
-            {
-              "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
-              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]"
-            },
-            {
-              "name": "WEBSITE_CONTENTSHARE",
-              "value": "[toLower(parameters('functionAppName'))]"
-            },
+            //{
+            //  "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
+            //  "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]"
+            //},
+            //{
+            //  "name": "WEBSITE_CONTENTSHARE",
+            //  "value": "[toLower(parameters('functionAppName'))]"
+            //},
             {
               "name": "FUNCTIONS_EXTENSION_VERSION",
               "value": "~2"
             },
-            {
-              "name": "WEBSITE_NODE_DEFAULT_VERSION",
-              "value": "6.5.0"
-            },
-            {
-              "name": "LogicAppEndpoint",
-              "value": "[listCallbackURL(concat(resourceId('Microsoft.Logic/workflows/', parameters('logicAppName')), '/triggers/manual'), '2016-06-01').value]"
-            },
+            //{
+            //  "name": "WEBSITE_NODE_DEFAULT_VERSION",
+            //  "value": "6.5.0"
+            //},
+            //{
+            //  "name": "LogicAppEndpoint",
+            //  "value": "[listCallbackURL(concat(resourceId('Microsoft.Logic/workflows/', parameters('logicAppName')), '/triggers/manual'), '2016-06-01').value]"
+            //},
             {
               "name": "Project",
               "value": "functions/twilio"
@@ -316,7 +316,12 @@
           ],
           "properties": {
             "AzureWebJobsStorage": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]",
-            "AzureWebJobsDashboard": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]"
+            "AzureWebJobsDashboard": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]",
+            "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]",
+            "WEBSITE_CONTENTSHARE": "[toLower(parameters('functionAppName'))]",
+            "FUNCTIONS_EXTENSION_VERSION": "~2",
+            "WEBSITE_NODE_DEFAULT_VERSION": "6.5.0",
+            "LogicAppEndpoint": "[listCallbackURL(concat(resourceId('Microsoft.Logic/workflows/', parameters('logicAppName')), '/triggers/manual'), '2016-06-01').value]"
           }
         },
         {
@@ -324,8 +329,7 @@
           "name": "web",
           "type": "sourcecontrols",
           "dependsOn": [
-            "[resourceId('Microsoft.Web/Sites', parameters('functionAppName'))]",
-            "[resourceId('Microsoft.Web/Sites/config', parameters('functionAppName'), 'appsettings')]"
+            "[resourceId('Microsoft.Web/Sites', parameters('functionAppName'))]"
           ],
           "properties": {
             "RepoUrl": "[variables('repoURL')]",
