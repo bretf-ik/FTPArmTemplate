@@ -317,7 +317,7 @@
       "type": "MICROSOFT.WEB/CONNECTIONS",
       "apiVersion": "2016-06-01",
       "name": "[parameters('boxConnectionName')]",
-      "location": "parameters('logicAppLocation')",
+      "location": "[parameters('logicAppLocation')]",
       "properties": {
         "api": {
           "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'box')]"
@@ -329,7 +329,7 @@
       "type": "MICROSOFT.WEB/CONNECTIONS",
       "apiVersion": "2016-06-01",
       "name": "[parameters('serviceBusConnectionName')]",
-      "location": "parameters('logicAppLocation')",
+      "location": "[parameters('logicAppLocation')]",
       "properties": {
         "api": {
           "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'servicebus')]"
