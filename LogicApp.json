@@ -51,36 +51,21 @@
         "description": "The name of the function app to create. Must be globally unique."
       }
     },
-    "boxConnectionName": {
-      "type": "string",
-      "defaultValue": "box"
-    },
-    "boxConnectionDisplayName": {
-      "type": "string",
-      "defaultValue": "box-connection"
-    },
-    "boxFolder": {
-      "type": "string",
-      "defaultValue": "/",
-      "metadata": {
-        "description": "The folder to monitor for new files"
-      }
-    },
-    "serviceBusConnectionName": {
+    "servicebusConnectionName": {
       "type": "string",
       "defaultValue": "servicebus",
       "metadata": {
         "description": "Service Bus Connection Name"
       }
     },
-    "serviceBusConnectionDisplayName": {
+    "servicebusConnectionDisplayName": {
       "type": "string",
       "defaultValue": "WorkbenchConnection",
       "metadata": {
         "description": "Service Bus Connection Display Name"
       }
     },
-    "serviceBusConnectionString": {
+    "servicebusConnectionString": {
       "type": "securestring",
       "metadata": {
         "description": "Azure Service Bus Connection String"
@@ -92,6 +77,14 @@
       "metadata": {
         "description": "Service Bus Queue Name"
       }
+    },
+    "googleDriveConnectionName": {
+      "type": "string",
+      "defaultValue": "googledrive"
+    },
+    "googleDriveConnectionDisplayName": {
+      "type": "string",
+      "defaultValue": "GoogleDriveConnection"
     },
     "userChainIdentifier": {
       "type": "string",
@@ -124,10 +117,49 @@
         "definition": {
           "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
           "actions": {
+            "Get_file_content_using_path": {
+              "type": "ApiConnection",
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['googledrive']['connectionId']"
+                  }
+                },
+                "method": "get",
+                "path": "/datasets/default/GetFileContentByPath",
+                "queries": {
+                  "path": "@triggerBody()?['filepath']",
+                  "queryParametersSingleEncoded": true,
+                  "inferContentType": true
+                }
+              },
+              "runAfter": {}
+            },
+            "Get_file_metadata_using_path": {
+              "type": "ApiConnection",
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['googledrive']['connectionId']"
+                  }
+                },
+                "method": "get",
+                "path": "/datasets/default/GetFileByPath",
+                "queries": {
+                  "path": "@triggerBody()?['filepath']",
+                  "queryParametersSingleEncoded": true
+                }
+              },
+              "runAfter": {
+                "Get_file_content_using_path": [
+                  "Succeeded"
+                ]
+              }
+            },
             "Hash_File_Content": {
               "type": "Function",
               "inputs": {
-                "body": "@triggerBody()['$content']",
+                "body": "@body('Get_file_content_using_path')['$content']",
                 "function": {
                   "id": "[resourceId('Microsoft.Web/sites/functions', parameters('functionAppName'), variables('functionName'))]"
                 }
@@ -142,17 +174,21 @@
               "type": "Function",
               "inputs": {
                 "body": {
-                  "contentType": "@triggerOutputs()['headers']['Content-Type']",
-                  "etag": "@triggerOutputs()['headers']['x-ms-file-etag']",
-                  "id": "@triggerOutputs()['headers']['x-ms-file-id']",
-                  "name": "@triggerOutputs()['headers']['x-ms-file-name-encoded']",
-                  "path": "@triggerOutputs()['headers']['x-ms-file-path-encoded']"
+                  "contentType": "@body('Get_file_metadata_using_path')?['MediaType']",
+                  "etag": "@body('Get_file_metadata_using_path')?['ETag']",
+                  "id": "@body('Get_file_metadata_using_path')?['Id']",
+                  "name": "@body('Get_file_metadata_using_path')?['Name']",
+                  "path": "@body('Get_file_metadata_using_path')?['Path']"
                 },
                 "function": {
                   "id": "[resourceId('Microsoft.Web/sites/functions', parameters('functionAppName'), variables('functionName'))]"
                 }
               },
-              "runAfter": {}
+              "runAfter": {
+                "Get_file_metadata_using_path": [
+                  "Succeeded"
+                ]
+              }
             },
             "Initialize_RequestId": {
               "type": "InitializeVariable",
@@ -193,13 +229,13 @@
               "inputs": {
                 "host": {
                   "connection": {
-                    "name": "@parameters('$connections')['servicebus_1']['connectionId']"
+                    "name": "@parameters('$connections')['servicebus']['connectionId']"
                   }
                 },
                 "method": "post",
                 "body": {
                   "SessionId": "@variables('RequestId')",
-                  "ContentData": "@{base64(concat('{','\n','    \"requestId\": \"',variables('RequestId'),'\",','\n','    \"userChainIdentifier\": \"',variables('UserChainIdentifier'),'\",','\n','    \"applicationName\": \"FileRegistry\",','\n','    \"workflowName\": \"File\",','\n','    \"parameters\": [','\n','        {','\n','            \"name\": \"registryAddress\",','\n','            \"value\": \"',variables('RegistryAddress'),'\"','\n','        },','\n','        { \"name\": \"fileId\", \"value\": \"',triggerOutputs()['headers']['x-ms-file-id'],'\" },','\n','        { \"name\": \"location\", \"value\": \"',base64(triggerOutputs()['headers']['x-ms-file-path-encoded']),'\" },','\n','        { \"name\": \"fileHash\", \"value\": \"',body('Hash_File_Content'),'\" },','\n','        { \"name\": \"fileMetadataHash\", \"value\": \"',body('Hash_File_Metadata'),'\" },','\n','        { \"name\": \"contentType\", \"value\": \"',triggerOutputs()['headers']['Content-Type'],'\" },','\n','        { \"name\": \"etag\", \"value\": ',triggerOutputs()['headers']['x-ms-file-etag'],'},','\n','        { \"name\": \"processedDateTime\", \"value\": \"',variables('ProcessDateTime'),'\" }           ','\n','    ],','\n','    \"connectionId\": 1,','\n','    \"messageSchemaVersion\": \"1.0.0\",','\n','    \"messageName\": \"CreateContractRequest\"','\n','}'))}"
+                  "ContentData": "@{base64(concat('{','\n','    \"requestId\": \"',variables('RequestId'),'\",','\n','    \"userChainIdentifier\": \"',variables('UserChainIdentifier'),'\",','\n','    \"applicationName\": \"FileRegistry\",','\n','    \"workflowName\": \"File\",','\n','    \"parameters\": [','\n','        {','\n','            \"name\": \"registryAddress\",','\n','            \"value\": \"',variables('RegistryAddress'),'\"','\n','        },','\n','        { \"name\": \"fileId\", \"value\": \"',body('Get_file_metadata_using_path')?['Id'],'\" },','\n','        { \"name\": \"location\", \"value\": \"',body('Get_file_metadata_using_path')?['Path'],'\" },','\n','        { \"name\": \"fileHash\", \"value\": \"',body('Hash_File_Content'),'\" },','\n','        { \"name\": \"fileMetadataHash\", \"value\": \"',body('Hash_File_Metadata'),'\" },','\n','        { \"name\": \"contentType\", \"value\": \"',body('Get_file_metadata_using_path')?['MediaType'],'\" },','\n','        { \"name\": \"etag\", \"value\": ',body('Get_file_metadata_using_path')?['ETag'],'},','\n','        { \"name\": \"processedDateTime\", \"value\": \"',variables('ProcessDateTime'),'\" }           ','\n','    ],','\n','    \"connectionId\": 1,','\n','    \"messageSchemaVersion\": \"1.0.0\",','\n','    \"messageName\": \"CreateContractRequest\"','\n','}'))}"
                 },
                 "path": "[concat('/@{encodeURIComponent(encodeURIComponent(', '''', parameters('serviceBusQueue'), '''', '))}', '/messages')]",
                 "queries": {
@@ -254,29 +290,19 @@
             }
           },
           "triggers": {
-            "When_a_file_is_created": {
-              "type": "ApiConnection",
+            "manual": {
+              "type": "Request",
+              "kind": "Http",
               "inputs": {
-                "host": {
-                  "connection": {
-                    "name": "@parameters('$connections')['box']['connectionId']"
-                  }
+                "schema": {
+                  "properties": {
+                    "filepath": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
                 },
-                "method": "get",
-                "path": "/datasets/default/triggers/onnewfile",
-                "queries": {
-                  "folderId": "57787303498",
-                  "queryParametersSingleEncoded": true,
-                  "inferContentType": true
-                }
-              },
-              "recurrence": {
-                "frequency": "Minute",
-                "interval": 3
-              },
-              "metadata": {
-                "0": "/",
-                "57787303498": "[parameters('boxFolder')]"
+                "method": "POST"
               }
             }
           },
@@ -286,15 +312,15 @@
         "parameters": {
           "$connections": {
             "value": {
-              "servicebus_1": {
-                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'servicebus')]",
-                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('serviceBusConnectionName'))]",
-                "connectionName": "[parameters('serviceBusConnectionName')]"
+              "googledrive": {
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'googledrive')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('googleDriveConnectionName'))]",
+                "connectionName": "[parameters('googleDriveConnectionName')]"
               },
-              "box": {
-                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'box')]",
-                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('boxConnectionName'))]",
-                "connectionName": "[parameters('boxConnectionName')]"
+              "servicebus": {
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'servicebus')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('servicebusConnectionName'))]",
+                "connectionName": "[parameters('servicebusConnectionName')]"
               }
             }
           }
@@ -309,35 +335,35 @@
       "apiVersion": "2016-06-01",
       "dependsOn": [
         "[resourceId('Microsoft.Web/sites/sourcecontrols', parameters('functionAppName'), 'web')]",
-        "[resourceId('Microsoft.Web/connections', parameters('serviceBusConnectionName'))]",
-        "[resourceId('Microsoft.Web/connections', parameters('boxConnectionName'))]"
+        "[resourceId('Microsoft.Web/connections', parameters('googleDriveConnectionName'))]",
+        "[resourceId('Microsoft.Web/connections', parameters('servicebusConnectionName'))]"
       ]
     },
     {
       "type": "MICROSOFT.WEB/CONNECTIONS",
       "apiVersion": "2016-06-01",
-      "name": "[parameters('boxConnectionName')]",
-      "location": "[parameters('logicAppLocation')]",
-      "properties": {
-        "api": {
-          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'box')]"
-        },
-        "displayName": "[parameters('boxConnectionDisplayName')]"
-      }
-    },
-    {
-      "type": "MICROSOFT.WEB/CONNECTIONS",
-      "apiVersion": "2016-06-01",
-      "name": "[parameters('serviceBusConnectionName')]",
+      "name": "[parameters('servicebusConnectionName')]",
       "location": "[parameters('logicAppLocation')]",
       "properties": {
         "api": {
           "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'servicebus')]"
         },
-        "displayName": "[parameters('serviceBusConnectionDisplayName')]",
+        "displayName": "[parameters('servicebusConnectionDisplayName')]",
         "parameterValues": {
-          "connectionString": "[parameters('serviceBusConnectionString')]"
+          "connectionString": "[parameters('servicebusConnectionString')]"
         }
+      }
+    },
+    {
+      "type": "MICROSOFT.WEB/CONNECTIONS",
+      "apiVersion": "2016-06-01",
+      "name": "[parameters('googleDriveConnectionName')]",
+      "location": "[parameters('logicAppLocation')]",
+      "properties": {
+        "api": {
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'googledrive')]"
+        },
+        "displayName": "[parameters('googleDriveConnectionDisplayName')]"
       }
     },
     {
